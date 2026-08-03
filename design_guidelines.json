@@ -1,0 +1,117 @@
+{
+  "theme": "light",
+  "archetype": "Vibrant Play & Gamified Professional",
+  "language": "es",
+  "colors": {
+    "primary": "#0460c3",
+    "primary_dark": "#002954",
+    "primary_light": "#00b8e2",
+    "success_accent": "#57cc02",
+    "background": "#FFFFFF",
+    "surface": "#F5F8FA",
+    "text_primary": "#002954",
+    "text_secondary": "#4A6583",
+    "border": "#E1E8F0",
+    "error": "#FF3B30",
+    "white": "#FFFFFF",
+    "black": "#000000"
+  },
+  "typography": {
+    "font_family_headings": "Nunito, System",
+    "font_family_body": "System",
+    "h1": "text-4xl font-black tracking-tight text-[#002954]",
+    "h2": "text-3xl font-bold tracking-tight text-[#002954]",
+    "h3": "text-xl font-bold text-[#0460c3]",
+    "body": "text-base font-normal text-[#4A6583]",
+    "small": "text-sm font-medium tracking-wide uppercase text-[#4A6583]"
+  },
+  "spacing_and_layout": {
+    "container_padding": "px-6",
+    "element_gap": "gap-4",
+    "section_gap": "gap-8",
+    "border_radius": {
+      "sm": "rounded-lg",
+      "md": "rounded-2xl",
+      "lg": "rounded-[24px]",
+      "full": "rounded-full"
+    },
+    "shadows": {
+      "card": "shadow-sm shadow-blue-900/10",
+      "button": "shadow-md shadow-[#0460c3]/20"
+    }
+  },
+  "components": {
+    "watermark_background": {
+      "description": "ImageBackground wrapper applied to all end-user screens (except Admin/Splash).",
+      "image_url": "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/871qvire_Fondo.jpg",
+      "style": "opacity: 0.05, resizeMode: 'repeat' or 'cover'"
+    },
+    "buttons": {
+      "primary": "bg-[#0460c3] rounded-2xl py-4 px-6 items-center justify-center shadow-sm",
+      "primary_text": "text-white font-bold text-lg",
+      "success": "bg-[#57cc02] rounded-2xl py-4 px-6 items-center justify-center shadow-md",
+      "success_text": "text-white font-bold text-lg",
+      "outline": "border-2 border-[#00b8e2] rounded-2xl py-4 px-6 items-center justify-center",
+      "outline_text": "text-[#0460c3] font-bold text-lg"
+    },
+    "quiz_option_card": {
+      "container": "bg-white border-2 border-[#E1E8F0] rounded-2xl p-4 flex-row items-center mb-3 shadow-sm",
+      "bullet_icon": "Use the green claw icon (from Logos artifact) sized 24x24 instead of standard radio buttons.",
+      "selected_state": "border-[#00b8e2] bg-[#E5F7FB]",
+      "correct_state": "border-[#57cc02] bg-[#EEFADF]",
+      "correct_bullet_icon": "Replace green claw with Green Check icon",
+      "wrong_state": "border-[#FF3B30] bg-[#FFECEB]"
+    },
+    "admin_dashboard_card": {
+      "container": "bg-white rounded-2xl p-5 shadow-sm border border-[#E1E8F0] flex-col",
+      "value_text": "text-3xl font-black text-[#002954]",
+      "label_text": "text-sm text-[#4A6583] uppercase tracking-wide mt-1"
+    }
+  },
+  "screens": {
+    "login_splash": {
+      "layout": "Centered content with primary brand colors.",
+      "elements": [
+        "Main branding/illustration at center",
+        "Google Sign-In button prominent",
+        "Company Logo 'GerabDevSoft' absolutely positioned at the bottom (safe area bottom) with mb-6"
+      ]
+    },
+    "user_home": {
+      "layout": "Scrollable area inside an ImageBackground for the watermark.",
+      "elements": [
+        "Header greeting & current points (points text in #57cc02 for highlight)",
+        "Daily Question Card: prominent, using quiz_option_card design",
+        "Next Raffle teaser: Card showing prize image and countdown/date"
+      ]
+    },
+    "admin_panel": {
+      "layout": "Bottom Tab or Drawer Navigation. Clean white/gray background (NO watermark).",
+      "elements": [
+        "Metrics Grid (Users, Active, Played, etc.) at the top",
+        "Actionable lists for Question Bank & Prize Management (with image upload preview support)",
+        "Execute Raffle CTA (Prominent Bright #57cc02 button)"
+      ]
+    }
+  },
+  "media_assets": {
+    "colors_reference": "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/o6n8mjej_Colores.jpg",
+    "background_watermark": "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/871qvire_Fondo.jpg",
+    "icons_logos": "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/uv069adk_Logos.jpg",
+    "gerabdevsoft_logo": "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/u0pqzdlp_Logo%20GerabDevSoft.jpg"
+  },
+  "testing_requirements": {
+    "data_testid_rule": "ALL interactive components, touchables, inputs, and key text nodes MUST include a `data-testid` attribute."
+  },
+  "instructions_to_main_agent": [
+    "Use standard React Native components (View, Text, TouchableOpacity, Image, ImageBackground, SafeAreaView).",
+    "Implement navigation using React Navigation (Stack for auth/splash, Bottom Tabs for User, Drawer or Bottom Tabs for Admin).",
+    "Apply the `background_watermark` globally on User screens using ImageBackground with `opacity: 0.05` to `0.1` max to keep it subtle.",
+    "For quiz bullets, render the claw icon from the provided logos artifact using an Image component.",
+    "On correct answers, swap the claw bullet with the check icon from the logos artifact.",
+    "The login screen MUST have the 'gerabdevsoft_logo' pinned to the bottom of the screen (absolute positioning or flex-end).",
+    "Ensure the green color (#57cc02) is used strictly for success states, active selections, points highlights, or primary calls to action like 'Responder' or 'Ejecutar Sorteo'.",
+    "Maintain high contrast for readability using the dark blue (#002954) for primary text and headings.",
+    "All copy and UI text must be in Spanish as per user requirements."
+  ]
+}

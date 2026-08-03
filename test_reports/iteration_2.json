@@ -1,0 +1,63 @@
+{
+  "summary": "Backend-only testing of new local email/password auth (register, login, forgot-password, reset-password, JWT compat, admin seed). Created /app/backend/tests/test_auth_local.py with 14 tests. Isolated run: 13/14 PASSED. Full-suite run: 36/41 PASSED. Only failure is the rate-limit assertion (429 on 6th login) which reveals a REAL backend bug: rate limiting is unreliable through the public Kubernetes ingress because `_rate_check` uses `request.client.host` (the ingress/proxy IP, which varies across requests), instead of a real-client header like X-Forwarded-For. Verified against localhost:8001 directly: attempt 6+ correctly returns 429. Through the public EXPO_PUBLIC_BACKEND_URL: attempt 6+ still returns 400 (bucket key differs per request), or in mixed test runs the global ('forgot', ip) bucket unexpectedly fires 429 across unrelated tests. All other requirements verified: register returns JWT+user (is_admin=false, provider=local); duplicate email → 400; password<6 → 422; admin login returns is_admin=true; wrong/nonexistent email → 400; forgot-password with registered vs unregistered emails returns the SAME generic message (no enumeration) and creates a password_resets entry in Mongo for registered users only; reset-password with a valid token updates hash, deletes all user_sessions, invalidates old JWTs (401 on /auth/me), and lets user log in with new password; invalid/reused token → 400; admin JWT from /login works on all /api/admin/* endpoints (stats, questions, users, prizes, schedule, settings, raffles/history); admin seed is idempotent (survives restart, still is_admin=true with password_hash). Bcrypt version-read warning appears in logs but does NOT block hashing (passlib fallback, non-blocking). Resend and Emergent Push remain MOCKED (placeholder keys — reset tokens logged to backend.err.log as [EMAIL MOCK]).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/auth/login (and /api/auth/forgot-password, /api/auth/register)",
+        "issue": "Rate limiter uses request.client.host which behind the Kubernetes ingress is the proxy IP and varies per connection, so per-(email,ip) buckets are NOT stable. Result: through the public URL the 429 limit is inconsistently enforced — often never triggers (all 6+ wrong passwords return 400), and the global ('forgot', ip) key can trigger 429 falsely across unrelated users sharing the same proxy IP. Verified: on localhost:8001 the 6th attempt correctly returns 429; through https://quiz-points-raffle.preview.emergentagent.com the 6th (and 7th, 8th) still returns 400. Fix: derive the client IP from X-Forwarded-For (leftmost, trusted) or X-Real-IP header, falling back to request.client.host only when absent. Reference: /app/backend/server.py:375-381 and callers at 572, 611, 636.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "startup / passlib bcrypt",
+        "issue": "passlib emits 'AttributeError: module bcrypt has no attribute __about__' warning at startup (passlib 1.7.4 vs bcrypt 4.x incompat). Non-blocking — hashing works — but noisy. Consider pinning bcrypt<4 or switching to argon2/bcrypt via passlib update."
+      },
+      {
+        "endpoint": "POST /api/auth/register",
+        "issue": "Uses the same rate-limit key ('register', ip) as forgot-password action ('forgot', ip)? Actually register key is ('register', ip); however LOGIN_MAX_ATTEMPTS=5/60s applied to register is easy to trip in tests. Not blocking but consider per-email keys for registration too."
+      },
+      {
+        "endpoint": "Reset flow",
+        "issue": "Reset link URL uses FRONTEND_BASE_URL but frontend route '/reset-password' is not verified in this backend-only pass. Ensure a matching Expo Router screen exists."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_local.py",
+    "/app/backend/tests/test_trivia_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_auth_local.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "FIX rate limiter: read client IP from X-Forwarded-For / X-Real-IP header in _rate_check callers so the (key, ip) tuple is stable behind the ingress. Without this, 429 protection is effectively disabled in production/preview and the PRD requirement ('6º intento → 429') is not satisfied through the public URL.",
+    "OPTIONAL: silence passlib bcrypt version warning by pinning bcrypt<4 in requirements.txt or upgrading passlib.",
+    "OPTIONAL: use per-email key for forgot-password bucket to avoid a single noisy IP blocking all users."
+  ],
+  "critical_code_review_comments": [
+    "In-memory _rate_bucket resets on every backend --reload / restart. Fine for dev but means production rate limiting is per-worker/per-process. For horizontal scaling move to Redis or Mongo TTL collection.",
+    "reset_password revokes ALL user_sessions on success (correct). Consider adding an audit log entry.",
+    "forgot_password returns the same generic message for existing and non-existing emails — good (no enumeration). Verified.",
+    "server.py is now ~1345 lines; consider splitting auth into /app/backend/routers/auth.py.",
+    "@app.on_event('startup') is deprecated in FastAPI; migrate to lifespan context manager (informational)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_local.py (created)"
+  ],
+  "success_rate": {
+    "backend": "13/14 isolated (92.8%); 36/41 full-suite — the 5 full-suite failures cascade from the same rate-limit bug (buckets consumed by earlier tests)",
+    "frontend": "N/A - backend only"
+  },
+  "seed_data_creation": "Test users prefixed with test_auth_* are created via /api/auth/register and cleaned up in a module-scoped autouse fixture (users + sessions + password_resets). Admin (admin@usfx.bo) and its data are NOT touched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New auth suite at /app/backend/tests/test_auth_local.py. All flows work except rate limiting through the public ingress. To reproduce the rate-limit bug: register a user then POST 6+ wrong-password logins through EXPO_PUBLIC_BACKEND_URL and observe all 6 return 400 (should be 429 on the 6th). On localhost:8001 the same test correctly returns 429 on the 6th attempt. Rate-limit tests are inherently flaky in full-suite runs because forgot-password and register share global-per-ip buckets. After the fix, re-run the whole suite to confirm no regressions.",
+  "rca_of_issue": "Rate limit uses request.client.host as the IP component of the bucket key. Behind Kubernetes ingress / Emergent proxy, this is the immediate TCP peer of uvicorn — often a rotating internal address — not the real client. Consequences: (1) same user's 6 rapid failed logins are treated as coming from 6 different IPs → bucket never fills → 429 never fires (the observed test failure); (2) many independent users appear as the same proxy IP for the ('forgot', ip) bucket → one user's activity can 429 everyone else. Fix: parse X-Forwarded-For (or X-Real-IP) header and use the first client IP, falling back to request.client.host only if absent. Server tested directly at http://localhost:8001 confirms the logic itself is correct — 6th attempt returns 429."
+}

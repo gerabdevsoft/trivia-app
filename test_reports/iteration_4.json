@@ -1,0 +1,64 @@
+{
+  "summary": "Iteration 4: verified Emergent OAuth (/api/auth/session) was fully removed and new direct Google Sign-In endpoint POST /api/auth/google is wired correctly. Added new test suite /app/backend/tests/test_auth_google.py (10 tests) covering: (a) legacy /api/auth/session now returns 404, (b) /api/auth/google returns 422 with no body / wrong type, (c) 401 with 'ID token inválido' on garbage string, (d) 401 on JWT signed with a foreign key (well-formed but not from Google), (e) backend .env exposes non-empty GOOGLE_WEB_CLIENT_ID ending in .apps.googleusercontent.com, (f) /api/auth/logout revokes the session_token in the shared user_sessions collection (same behavior would apply to a Google-issued session — same code path). Full backend suite: 52/52 PASSED (was 41 previous + 10 new Google + 1 rewritten legacy). Also refactored one stale test in test_trivia_backend.py::TestAuth::test_invalid_session that still targeted the removed /auth/session endpoint; renamed to test_legacy_session_endpoint_removed and added test_invalid_google_id_token. No regressions in email/password login, forgot/reset password, admin JWT compat, rate limits, questions/answers, prizes, raffles, or notifications. Backend startup log shows google-auth 2.55.1 imported cleanly (no crash on module load — only pre-existing benign passlib/bcrypt WARNING). Happy-path Google login was NOT tested (would need a real google-signed id_token or in-process mocking of google_id_token.verify_oauth2_token; per the request note this is optional).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/google",
+        "issue": "server.py:517-530 passes audience=None to google_id_token.verify_oauth2_token, then manually validates aud against ALLOWED_GOOGLE_AUDIENCES afterwards (server.py:536-538). This is functionally OK, but Google's library supports passing a list/set of audiences directly; passing None disables the library-side aud check which is acceptable only because the manual check runs immediately after. Consider passing `audience=list(ALLOWED_GOOGLE_AUDIENCES)` (or leaving the current pattern with a code comment) so the intent is explicit."
+      },
+      {
+        "endpoint": "GOOGLE_IOS_CLIENT_ID",
+        "issue": "backend/.env has WEB and ANDROID client IDs but no iOS client id. If iOS build is planned, add GOOGLE_IOS_CLIENT_ID; the code (server.py:42-45) already reads it and would include it in ALLOWED_GOOGLE_AUDIENCES."
+      },
+      {
+        "endpoint": "passlib bcrypt (pre-existing)",
+        "issue": "passlib 1.7.4 still emits 'module bcrypt has no attribute __about__' at startup. Non-blocking (hashing works). Same as iteration 3."
+      },
+      {
+        "endpoint": "server.py size",
+        "issue": "server.py is ~1373 lines. Consider splitting auth into /app/backend/routers/auth.py (informational, not blocking). Same as iteration 3."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_google.py",
+    "/app/backend/tests/test_auth_local.py",
+    "/app/backend/tests/test_trivia_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_auth_google.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Update /app/memory/test_credentials.md: remove the line documenting POST /api/auth/session (it no longer exists) and replace it with POST /api/auth/google (accepts {id_token} from @react-native-google-signin/google-signin, returns {session_token, user}).",
+    "OPTIONAL: pass audience=list(ALLOWED_GOOGLE_AUDIENCES) to google_id_token.verify_oauth2_token to make the aud check explicit at the library level (currently done manually just after — still safe).",
+    "OPTIONAL: add GOOGLE_IOS_CLIENT_ID to backend/.env if an iOS build is planned."
+  ],
+  "critical_code_review_comments": [
+    "server.py:15-16 imports google.oauth2.id_token + google.auth.transport.requests at module top — correct; no lazy-import needed. Backend restarts cleanly (verified in /var/log/supervisor/backend.err.log).",
+    "server.py:43-45 ALLOWED_GOOGLE_AUDIENCES computed at import-time as the set of non-empty client IDs. Test confirms it contains at least GOOGLE_WEB_CLIENT_ID.",
+    "server.py:517-587 /auth/google: correctly (1) verifies token signature with google-auth, (2) validates iss (accepts both accounts.google.com and https://accounts.google.com), (3) validates aud against ALLOWED_GOOGLE_AUDIENCES, (4) enforces email_verified, (5) creates OR updates user (idempotent), (6) auto-grants is_admin when email==ADMIN_EMAIL, (7) inserts a session in the SAME user_sessions collection used by local auth so /auth/logout works uniformly.",
+    "server.py:706-711 /auth/logout only splits authorization if it exists — but earlier in get_current_user (server.py:262-263) the presence and 'bearer ' prefix are already validated, so authorization.split() here is safe. Good.",
+    "MongoDB _id correctly excluded via projections in all Google/session handlers.",
+    "SECURITY: ALLOWED_GOOGLE_AUDIENCES is enforced (aud not in set → 401 'Audiencia no permitida'), so a Google-signed token issued for another app's client_id cannot be used to authenticate here."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_google.py (NEW — 10 tests for /auth/google + legacy /auth/session removal + logout session revoke)",
+    "/app/backend/tests/test_trivia_backend.py (updated stale TestAuth::test_invalid_session → now test_legacy_session_endpoint_removed + test_invalid_google_id_token — 404 for legacy, 401 for invalid Google token)"
+  ],
+  "success_rate": {
+    "backend": "52/52 full suite (100%) — 10 new Google tests + 14 auth_local + 28 trivia_backend",
+    "frontend": "N/A - backend only per request"
+  },
+  "seed_data_creation": "test_auth_logout_* users created via /api/auth/register and cleaned by module-scoped autouse fixture. Admin (admin@usfx.bo) untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Google Sign-In direct endpoint (POST /api/auth/google) is live. Happy-path (valid Google id_token → session issued) is NOT covered by automated tests because it requires either (a) a real Google-signed token from an OAuth flow or (b) monkey-patching google_id_token.verify_oauth2_token in-process — not doable through the public HTTP surface. If future testing needs happy-path coverage, add an in-process test that patches google_id_token.verify_oauth2_token to return a fake payload and calls the endpoint via TestClient/httpx directly on the ASGI app (not through the ingress). Legacy /api/auth/session is fully removed. All other flows unchanged. /app/memory/test_credentials.md still documents the removed endpoint — should be updated by main agent.",
+  "rca_of_issue": "N/A — no bugs found. New endpoint behaves correctly on all invalid-input paths, and the removal of /api/auth/session propagated to a 404 as expected (FastAPI no longer has that route). One stale test in test_trivia_backend.py was updated to reflect the new API surface."
+}
