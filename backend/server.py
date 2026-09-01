@@ -74,8 +74,6 @@ emergent_auth_client = None  # Emergent auth removed; kept var for compatibility
 
 # --- App ---
 app = FastAPI()
-api_router = APIRouter(prefix="/api")
-
 
 # =========================
 # Idle / Modo Cerrado
@@ -1434,8 +1432,6 @@ async def status_endpoint():
     }
 
 
-app.include_router(api_router)
-
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -1443,3 +1439,5 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+api_router = APIRouter(prefix="/api")
+app.include_router(api_router)
