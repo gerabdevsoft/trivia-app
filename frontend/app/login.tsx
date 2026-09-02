@@ -123,6 +123,12 @@ export default function LoginScreen() {
       if (u?.is_admin) router.replace("/(admin)/dashboard");
       else router.replace("/(user)/home");
     } catch (e: any) {
+      if (e?.response) {
+        console.log("CÓDIGO DE ERROR DEL SERVIDOR:", e.response.status);
+        console.log("CUERPO DEL ERROR:", JSON.stringify(e.response.data));
+      } else {
+        console.log("ERROR DE CONEXIÓN LOCAL:", e);
+      }
       setErrorMsg(e?.message || "Error");
     } finally {
       setBusy(false);

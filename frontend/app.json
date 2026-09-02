@@ -1,16 +1,17 @@
 {
   "expo": {
-    "name": "Trivia GerabDevSoft",
-    "slug": "frontend",
+    "name": "Trivia Usfx",
+    "slug": "trivia-usfx",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "triviausfx",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.quizpointsraffle.fy1s6l",
+      "googleServicesFile": "./google-services.json",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Subir imágenes de premios al panel administrativo"
       }
@@ -21,9 +22,12 @@
         "backgroundColor": "#002954"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.quizpointsraffle.fy1s6l",
-      "googleServicesFile": "./google-services.json",
-      "permissions": ["READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES"]
+      "package": "soft.dev.gerab.usfx.trivia",      
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -53,6 +57,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b3455266-a0a4-4637-ac09-0c1c867154a2"
+      }
     }
   }
 }

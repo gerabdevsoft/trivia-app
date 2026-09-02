@@ -72,7 +72,14 @@ export default function HomeScreen() {
   const acknowledge = async (win: Win) => {
     try {
       await api.ackWin(win.raffle_id);
-      setWins((prev) => prev.map((x) => (x.raffle_id === win.raffle_id ? { ...x, acknowledged: true } : x)));
+      //setWins((prev) => prev.map((x) => (x.raffle_id === win.raffle_id ? { ...x, acknowledged: true } : x)));
+      setWins((prev) =>
+        Array.isArray(prev)
+          ? prev.map((x) =>
+              x.raffle_id === win.raffle_id ? { ...x, acknowledged: true } : x,
+            )
+          : [],
+      );
       setCelebrateWin(null);
     } catch (e) {
       console.log("ack err", e);
@@ -85,12 +92,27 @@ export default function HomeScreen() {
     setSubmitting(q.id);
     try {
       const r = await api.submitAnswer(q.id, idx);
-      setQuestions((prev) =>
+      /*setQuestions((prev) =>
         prev.map((qq) =>
           qq.id === q.id
             ? { ...qq, already_answered: true, selected_index: idx, was_correct: r.correct, correct_index: r.correct_index }
             : qq,
         ),
+      );*/
+      setQuestions((prev) =>
+        Array.isArray(prev)
+          ? prev.map((qq) =>
+              qq.id === q.id
+                ? {
+                    ...qq,
+                    already_answered: true,
+                    selected_index: idx,
+                    was_correct: r.correct,
+                    correct_index: r.correct_index,
+                  }
+                : qq,
+            )
+          : [],
       );
       refreshUser();
     } catch (e: any) {
@@ -100,8 +122,8 @@ export default function HomeScreen() {
     }
   };
 
-  const answeredCount = questions.filter((q) => q.already_answered).length;
-  const correctToday = questions.filter((q) => q.was_correct).length;
+  const answeredCount = questions?.filter((q) => q.already_answered)?.length;
+  const correctToday = questions?.filter((q) => q.was_correct)?.length;
 
   if (loading) {
     return (
@@ -117,19 +139,30 @@ export default function HomeScreen() {
     <UserBackground>
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.hello}>¡Hola,</Text>
-          <Text style={styles.userName} testID="home-user-name">{user?.name || "jugador"}!</Text>
+          <Text style={styles.userName} testID="home-user-name">
+            {user?.name || "jugador"}!
+          </Text>
         </View>
 
-        {wins.length > 0 && (
+        {wins?.length > 0 && (
           <View>
-            {wins.slice(0, 3).map((w) => (
+            {wins?.slice(0, 3)?.map((w) => (
               <TouchableOpacity
                 key={w.raffle_id}
-                style={[styles.winBanner, w.acknowledged && styles.winBannerSeen]}
+                style={[
+                  styles.winBanner,
+                  w.acknowledged && styles.winBannerSeen,
+                ]}
                 onPress={() => setCelebrateWin(w)}
                 testID={`win-banner-${w.raffle_id}`}
                 activeOpacity={0.8}
@@ -139,34 +172,65 @@ export default function HomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.winTitle}>¡Ganaste un sorteo!</Text>
-                  <Text style={styles.winPrize} numberOfLines={1}>{w.prize_name}</Text>
+                  <Text style={styles.winPrize} numberOfLines={1}>
+                    {w.prize_name}
+                  </Text>
                 </View>
                 {!w.acknowledged && (
-                  <View style={styles.newDot}><Text style={styles.newDotText}>NUEVO</Text></View>
+                  <View style={styles.newDot}>
+                    <Text style={styles.newDotText}>NUEVO</Text>
+                  </View>
                 )}
-                <Ionicons name="chevron-forward" size={20} color={COLORS.white} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.white}
+                />
               </TouchableOpacity>
             ))}
           </View>
         )}
 
         <View style={styles.statsRow}>
-          <StatCard label="Puntos" value={user?.total_points ?? 0} icon="star" color={COLORS.accent} testID="stat-points" />
-          <StatCard label="Correctas" value={user?.correct_count ?? 0} icon="checkmark-circle" color={COLORS.primary} testID="stat-correct" />
-          <StatCard label="Hoy" value={`${correctToday}/${questions.length}`} icon="today" color={COLORS.primaryLight} testID="stat-today" />
+          <StatCard
+            label="Puntos"
+            value={user?.total_points ?? 0}
+            icon="star"
+            color={COLORS.accent}
+            testID="stat-points"
+          />
+          <StatCard
+            label="Correctas"
+            value={user?.correct_count ?? 0}
+            icon="checkmark-circle"
+            color={COLORS.primary}
+            testID="stat-correct"
+          />
+          <StatCard
+            label="Hoy"
+            value={`${correctToday}/${questions?.length}`}
+            icon="today"
+            color={COLORS.primaryLight}
+            testID="stat-today"
+          />
         </View>
 
         <Text style={styles.sectionTitle}>Preguntas del día</Text>
-        {questions.length === 0 ? (
+        {questions?.length === 0 ? (
           <View style={styles.emptyCard} testID="empty-questions">
-            <Ionicons name="hourglass-outline" size={48} color={COLORS.textMuted} />
+            <Ionicons
+              name="hourglass-outline"
+              size={48}
+              color={COLORS.textMuted}
+            />
             <Text style={styles.emptyTitle}>Aún no hay preguntas</Text>
             <Text style={styles.emptyText}>
-              El administrador publicará las preguntas del día pronto. Recibirás una notificación.
+              El administrador publicará las preguntas del día pronto. Recibirás
+              una notificación.
             </Text>
           </View>
         ) : (
-          questions.map((q, qi) => (
+          questions?.map((q, qi) => (
             <QuestionCard
               key={q.id}
               q={q}
@@ -177,11 +241,13 @@ export default function HomeScreen() {
           ))
         )}
 
-        {answeredCount === questions.length && questions.length > 0 && (
+        {answeredCount === questions?.length && questions?.length > 0 && (
           <View style={styles.doneCard} testID="all-done-card">
             <Ionicons name="ribbon" size={40} color={COLORS.accent} />
             <Text style={styles.doneTitle}>¡Completaste el reto de hoy!</Text>
-            <Text style={styles.doneText}>Vuelve mañana por más preguntas.</Text>
+            <Text style={styles.doneText}>
+              Vuelve mañana por más preguntas.
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -200,11 +266,17 @@ export default function HomeScreen() {
             <Text style={styles.celebrateTitle}>¡Felicidades!</Text>
             <Text style={styles.celebrateText}>
               Ganaste el sorteo{"\n"}
-              <Text style={styles.celebratePrize}>{celebrateWin?.prize_name}</Text>
+              <Text style={styles.celebratePrize}>
+                {celebrateWin?.prize_name}
+              </Text>
             </Text>
             <Text style={styles.celebrateDate}>
-              {celebrateWin?.prize_type === "weekly" ? "Sorteo Semanal" : "Sorteo Usuarios Activos"}
-              {celebrateWin?.date ? ` · ${String(celebrateWin.date).slice(0, 10)}` : ""}
+              {celebrateWin?.prize_type === "weekly"
+                ? "Sorteo Semanal"
+                : "Sorteo Usuarios Activos"}
+              {celebrateWin?.date
+                ? ` · ${String(celebrateWin.date).slice(0, 10)}`
+                : ""}
             </Text>
             <TouchableOpacity
               style={styles.celebrateBtn}
@@ -251,7 +323,7 @@ function QuestionCard({
       </View>
       <Text style={styles.statement}>{q.statement}</Text>
       <View style={{ gap: 10, marginTop: 12 }}>
-        {q.options.map((opt, idx) => {
+        {q.options?.map((opt, idx) => {
           const isSelected = q.selected_index === idx;
           const isCorrect = q.correct_index === idx;
           const showResult = q.already_answered;
@@ -262,11 +334,19 @@ function QuestionCard({
             if (isCorrect) {
               bg = COLORS.successBg;
               border = COLORS.success;
-              icon = <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />;
+              icon = (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={COLORS.success}
+                />
+              );
             } else if (isSelected) {
               bg = COLORS.errorBg;
               border = COLORS.error;
-              icon = <Ionicons name="close-circle" size={24} color={COLORS.error} />;
+              icon = (
+                <Ionicons name="close-circle" size={24} color={COLORS.error} />
+              );
             }
           }
           return (
@@ -275,7 +355,10 @@ function QuestionCard({
               activeOpacity={0.8}
               disabled={q.already_answered || submitting}
               onPress={() => onAnswer(idx)}
-              style={[styles.option, { backgroundColor: bg, borderColor: border }]}
+              style={[
+                styles.option,
+                { backgroundColor: bg, borderColor: border },
+              ]}
               testID={`option-${q.id}-${idx}`}
             >
               <View style={styles.optIcon}>{icon}</View>
@@ -296,7 +379,16 @@ function QuestionCard({
             size={18}
             color={q.was_correct ? COLORS.success : COLORS.primaryLight}
           />
-          <Text style={[styles.resultText, { color: q.was_correct ? COLORS.accentDarker : COLORS.textSecondary }]}>
+          <Text
+            style={[
+              styles.resultText,
+              {
+                color: q.was_correct
+                  ? COLORS.accentDarker
+                  : COLORS.textSecondary,
+              },
+            ]}
+          >
             {q.was_correct ? "¡Correcto! +1 punto" : "Sin puntos esta vez"}
           </Text>
         </View>
@@ -330,8 +422,19 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   statValue: { fontSize: 22, fontWeight: "900", marginTop: 4 },
-  statLabel: { fontSize: 11, color: COLORS.textMuted, marginTop: 2, textTransform: "uppercase", fontWeight: "600" },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: COLORS.primaryDark, marginBottom: 12 },
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    textTransform: "uppercase",
+    fontWeight: "600",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.primaryDark,
+    marginBottom: 12,
+  },
   card: {
     backgroundColor: COLORS.white,
     borderRadius: 20,
@@ -345,16 +448,31 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   badge: {
     backgroundColor: COLORS.surfaceAlt,
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 10,
   },
-  badgeText: { color: COLORS.primary, fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  badgeText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
   qIndex: { color: COLORS.textMuted, fontSize: 12, fontWeight: "600" },
-  statement: { fontSize: 16, color: COLORS.textPrimary, fontWeight: "700", lineHeight: 22 },
+  statement: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
   option: {
     flexDirection: "row",
     alignItems: "center",
@@ -363,10 +481,30 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     gap: 12,
   },
-  optIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
-  optText: { flex: 1, fontSize: 15, color: COLORS.textPrimary, fontWeight: "500" },
-  clawBullet: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
-  resultBar: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
+  optIcon: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    fontWeight: "500",
+  },
+  clawBullet: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
   resultText: { fontSize: 13, fontWeight: "700" },
   emptyCard: {
     backgroundColor: COLORS.white,
@@ -376,8 +514,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  emptyTitle: { fontSize: 18, fontWeight: "800", color: COLORS.primaryDark, marginTop: 12 },
-  emptyText: { fontSize: 14, color: COLORS.textSecondary, textAlign: "center", marginTop: 6 },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.primaryDark,
+    marginTop: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: 6,
+  },
   doneCard: {
     backgroundColor: COLORS.successBg,
     borderRadius: 20,
@@ -387,7 +535,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.success,
   },
-  doneTitle: { fontSize: 18, fontWeight: "900", color: COLORS.accentDarker, marginTop: 8 },
+  doneTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: COLORS.accentDarker,
+    marginTop: 8,
+  },
   doneText: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
   winBanner: {
     flexDirection: "row",
@@ -414,7 +567,12 @@ const styles = StyleSheet.create({
   },
   winTitle: { color: COLORS.white, fontWeight: "900", fontSize: 15 },
   winPrize: { color: COLORS.white, fontSize: 13, marginTop: 2, opacity: 0.95 },
-  newDot: { backgroundColor: COLORS.white, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  newDot: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
   newDotText: { color: COLORS.accentDarker, fontSize: 10, fontWeight: "900" },
   celebrateWrap: {
     flex: 1,
@@ -440,7 +598,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 16,
   },
-  celebrateTitle: { fontSize: 26, fontWeight: "900", color: COLORS.primaryDark },
+  celebrateTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: COLORS.primaryDark,
+  },
   celebrateText: {
     fontSize: 16,
     color: COLORS.textSecondary,
@@ -448,7 +610,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 24,
   },
-  celebratePrize: { fontSize: 18, fontWeight: "900", color: COLORS.accentDarker },
+  celebratePrize: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: COLORS.accentDarker,
+  },
   celebrateDate: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
   celebrateBtn: {
     backgroundColor: COLORS.accent,

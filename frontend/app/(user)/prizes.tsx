@@ -31,8 +31,8 @@ export default function Prizes() {
 
   useEffect(() => { load(); }, [load]);
 
-  const upcoming = prizes.filter((p) => !p.executed);
-  const past = prizes.filter((p) => p.executed);
+  const upcoming = prizes?.filter((p) => !p.executed);
+  const past = prizes?.filter((p) => p.executed);
 
   return (
     <UserBackground>

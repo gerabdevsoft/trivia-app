@@ -53,6 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const u = await api.me();
+      // VALIDACIÓN: Si no se tiene user_id, la sesión es inválida
+      if (!u || !u.user_id) {
+        throw new Error("Invalid session data.");
+      }
       setUser(u);
     } catch {
       setUser(null);
@@ -64,10 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const u = await api.me();
+        if (!u || !u.user_id) {
+          throw new Error("Invalid session data.");
+        }
         setUser(u);
         registerPush();
       } catch {
         setUser(null);
+        await clearToken();
       } finally {
         setLoading(false);
       }
@@ -75,6 +83,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [registerPush]);
 
   const applySessionResponse = useCallback(async (res: { session_token: string; user: any }) => {
+    console.log("=== RESPUESTA COMPLETA DE FASTAPI ===", JSON.stringify(res, null, 2));
+    const token = typeof res?.session_token === 'object' 
+      ? JSON.stringify(res.session_token) 
+      : String(res?.session_token || '');
+
+    if (!token || token === 'undefined' || token === 'null') {
+      console.error("Error: El backend no envió un session_token válido.", res);
+      throw new Error("No se pudo iniciar sesión: Token inválido.");
+    }
     await setToken(res.session_token);
     setUser(res.user);
     registerPush();

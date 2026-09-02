@@ -22,10 +22,11 @@ async function request<T = any>(
   const token = await getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "Accept": "application/json",
     ...(init.headers as Record<string, string> | undefined),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const url = `${API_BASE_URL}/api${path}`;
+  const url = `${API_BASE_URL}${path}`;
   const res = await fetch(url, { ...init, headers });
   const contentType = res.headers.get("content-type") || "";
   const body = contentType.includes("application/json") ? await res.json() : await res.text();

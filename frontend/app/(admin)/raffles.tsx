@@ -58,7 +58,7 @@ export default function AdminRaffles() {
     finally { setBusy(false); }
   };
 
-  const pending = prizes.filter((p) => !p.executed);
+  const pending = prizes?.filter((p) => !p.executed);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>

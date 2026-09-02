@@ -24,3 +24,15 @@ py -m pip install --upgrade pip
 
 # Instalar todas las librerías y dependencias
 pip install -r requirements.txt
+
+# Preparar el Frontend
+** descargar y sincronizar todas las dependencias
+yarn install
+** configurar eas cli
+npm install -g eas-cli
+** autenticar
+eas login
+**crear el archivo eas.json
+eas build:configure
+**crear el apk
+eas build --platform android --profile preview

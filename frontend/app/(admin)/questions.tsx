@@ -212,7 +212,7 @@ export default function AdminQuestions() {
             Selecciona {settings?.daily_questions_count ?? 5} preguntas activas para el día. Al publicar se enviará una notificación push.
           </Text>
 
-          {items.filter(q => q.active).map((q) => {
+          {items?.filter(q => q.active).map((q) => {
             const isSel = selected.has(q.id);
             return (
               <TouchableOpacity
