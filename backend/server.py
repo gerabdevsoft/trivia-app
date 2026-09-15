@@ -24,7 +24,7 @@ from fastapi.responses import Response as FastAPIResponse, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 # --- Load env ---
 ROOT_DIR = Path(__file__).parent
@@ -56,6 +56,26 @@ EMERGENT_AUTH_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/ses
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+FACULTIES = [
+    "Derecho, Ciencias Políticas y Sociales",
+    "Medicina",
+    "Odontología",
+    "Ciencias Químico - Farmacéuticas y Bioquímicas",
+    "Contaduría Pública y Ciencias Financieras",
+    "Ciencias Económicas y Empresariales",
+    "Ciencias y Tecnología",
+    "Ciencias Agrarias",
+    "Humanidades y Ciencias de la Educación",
+    "Técnica",
+    "Ciencias de Enfermería y Obstetricia",
+    "Ciencias y Tecnologías de la Salud",
+    "Ingeniería y Ciencias Aplicadas Meca - Electrónicas",
+    "Arquitectura y Ciencias del Hábitat",
+    "Ingeniería Civil",
+    "Integral Defensores del Chaco",
+]
+FACULTIES_SET = set(FACULTIES)
+
 # --- Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -74,16 +94,8 @@ emergent_auth_client = None  # Emergent auth removed; kept var for compatibility
 
 # --- App ---
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 api_router = APIRouter(prefix="/api")
+
 
 # =========================
 # Idle / Modo Cerrado
@@ -112,7 +124,7 @@ def is_idle_now() -> bool:
     return h >= start or h < end
 
 
-IDLE_ALLOWED_PATHS = {"/api/", "/api/status", "/docs", "/openapi.json", "/redoc"}
+IDLE_ALLOWED_PATHS = {"/api/", "/api/status", "/api/faculties", "/docs", "/openapi.json", "/redoc"}
 
 
 @app.middleware("http")
@@ -147,6 +159,55 @@ class RegisterBody(BaseModel):
     name: str = Field(..., min_length=2, max_length=80)
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=128)
+    faculty: str = Field(..., min_length=2, max_length=120)
+    ci: Optional[str] = Field(default=None, max_length=30)
+    cu: Optional[str] = Field(default=None, max_length=30)
+
+    @field_validator("faculty")
+    @classmethod
+    def _val_faculty(cls, v: str) -> str:
+        v = v.strip()
+        if v not in FACULTIES_SET:
+            raise ValueError("Facultad no válida")
+        return v
+
+    @field_validator("ci", "cu", mode="before")
+    @classmethod
+    def _clean_doc(cls, v):
+        if v is None:
+            return None
+        v = str(v).strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def _require_one_doc(self):
+        if not self.ci and not self.cu:
+            raise ValueError("Debes ingresar al menos un documento (CI o CU) para recoger premios")
+        return self
+
+
+class UpdateProfileBody(BaseModel):
+    faculty: Optional[str] = None
+    ci: Optional[str] = Field(default=None, max_length=30)
+    cu: Optional[str] = Field(default=None, max_length=30)
+
+    @field_validator("faculty")
+    @classmethod
+    def _val_fac(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        if v not in FACULTIES_SET:
+            raise ValueError("Facultad no válida")
+        return v
+
+    @field_validator("ci", "cu", mode="before")
+    @classmethod
+    def _clean(cls, v):
+        if v is None:
+            return None
+        v = str(v).strip()
+        return v or None
 
 
 class LoginBody(BaseModel):
@@ -408,6 +469,10 @@ def user_public(u: Dict[str, Any]) -> Dict[str, Any]:
         "correct_count": int(u.get("correct_count", 0)),
         "incorrect_count": int(u.get("incorrect_count", 0)),
         "provider": u.get("provider", "local"),
+        "faculty": u.get("faculty"),
+        "ci": u.get("ci"),
+        "cu": u.get("cu"),
+        "profile_complete": bool(u.get("faculty")) and bool(u.get("ci") or u.get("cu")),
     }
 
 
@@ -683,6 +748,9 @@ async def register(body: RegisterBody, request: Request):
         "created_at": now_utc(),
         "provider": "local",
         "password_hash": hash_password(body.password),
+        "faculty": body.faculty,
+        "ci": body.ci,
+        "cu": body.cu,
     })
 
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
@@ -1441,4 +1509,36 @@ async def status_endpoint():
         "message": "Aplicación cerrada" if idle else "Aplicación activa",
     }
 
+
+@api_router.get("/faculties")
+async def list_faculties():
+    return {"faculties": FACULTIES}
+
+
+@api_router.put("/me/profile")
+async def update_profile(body: UpdateProfileBody, user=Depends(get_current_user)):
+    update: Dict[str, Any] = {}
+    for k in ("faculty", "ci", "cu"):
+        v = getattr(body, k)
+        if v is not None:
+            update[k] = v
+    # Validate: at least one doc must remain
+    final_ci = update.get("ci", user.get("ci"))
+    final_cu = update.get("cu", user.get("cu"))
+    if not final_ci and not final_cu:
+        raise HTTPException(status_code=400, detail="Debes tener al menos un documento (CI o CU)")
+    if update:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return user_public(fresh)
+
+
 app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
