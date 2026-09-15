@@ -3,10 +3,12 @@ import { useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/src/theme";
 import { useAuth } from "@/src/context/auth";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AdminLayout() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (loading) return;
@@ -19,12 +21,14 @@ export default function AdminLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarInactiveTintColor: COLORS.textMuted,        
         tabBarStyle: {
           backgroundColor: COLORS.white,
           borderTopColor: COLORS.border,
-          height: 64,
-          paddingBottom: 8,
+          //height: 64,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 8),
+          //paddingBottom: 8,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontSize: 10, fontWeight: "700" },

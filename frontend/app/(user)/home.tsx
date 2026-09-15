@@ -138,6 +138,7 @@ export default function HomeScreen() {
   return (
     <UserBackground>
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
         refreshControl={
           <RefreshControl
@@ -407,7 +408,7 @@ function ClawBullet() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  scroll: { padding: 20, paddingBottom: 40 },
+  scroll: { flexGrow: 1, padding: 20, paddingBottom: 40 },
   header: { marginBottom: 20 },
   hello: { fontSize: 16, color: COLORS.textSecondary },
   userName: { fontSize: 28, fontWeight: "800", color: COLORS.primaryDark },

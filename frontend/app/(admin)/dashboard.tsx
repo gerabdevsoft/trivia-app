@@ -69,7 +69,8 @@ export default function AdminDashboard() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
       >
         {loading ? (
