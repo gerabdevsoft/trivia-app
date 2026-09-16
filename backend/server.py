@@ -94,8 +94,16 @@ emergent_auth_client = None  # Emergent auth removed; kept var for compatibility
 
 # --- App ---
 app = FastAPI()
-api_router = APIRouter(prefix="/api")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+api_router = APIRouter(prefix="/api")
 
 # =========================
 # Idle / Modo Cerrado
@@ -1532,13 +1540,5 @@ async def update_profile(body: UpdateProfileBody, user=Depends(get_current_user)
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return user_public(fresh)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-api_router = APIRouter(prefix="/api")
 app.include_router(api_router)
