@@ -10,6 +10,8 @@ import {
   TextInput,
   ScrollView,
   KeyboardAvoidingView,
+  Modal,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -40,6 +42,15 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [faculty, setFaculty] = useState<string>("");
+  const [ci, setCi] = useState("");
+  const [cu, setCu] = useState("");
+  const [facultyOpen, setFacultyOpen] = useState(false);
+  const [facultiesList, setFacultiesList] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.faculties().then((r) => setFacultiesList(r.faculties)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -114,21 +125,23 @@ export default function LoginScreen() {
       setErrorMsg("Ingresa tu nombre");
       return;
     }
+    if (mode === "register" && !faculty) {
+      setErrorMsg("Selecciona tu facultad");
+      return;
+    }
+    if (mode === "register" && !ci.trim() && !cu.trim()) {
+      setErrorMsg("Debes ingresar al menos un documento (CI o CU) para recoger premios");
+      return;
+    }
     setBusy(true);
     try {
       const res = mode === "login"
         ? await api.login(email.trim(), password)
-        : await api.register(name.trim(), email.trim(), password);
+        : await api.register(name.trim(), email.trim(), password, faculty, ci.trim() || null, cu.trim() || null);
       const u = await applySessionResponse(res);
       if (u?.is_admin) router.replace("/(admin)/dashboard");
       else router.replace("/(user)/home");
-    } catch (e: any) {
-      if (e?.response) {
-        console.log("CÓDIGO DE ERROR DEL SERVIDOR:", e.response.status);
-        console.log("CUERPO DEL ERROR:", JSON.stringify(e.response.data));
-      } else {
-        console.log("ERROR DE CONEXIÓN LOCAL:", e);
-      }
+    } catch (e: any) {            
       setErrorMsg(e?.message || "Error");
     } finally {
       setBusy(false);
@@ -150,7 +163,7 @@ export default function LoginScreen() {
             <View style={styles.iconCircle}>
               <Ionicons name="trophy" size={56} color={COLORS.white} />
             </View>
-            <Text style={styles.title} testID="app-title">Trivia GerabDevSoft</Text>
+            <Text style={styles.title} testID="app-title">Yamile Hayes Pregunta</Text>
             <Text style={styles.subtitle}>
               Responde, acumula puntos y gana premios
             </Text>
@@ -187,6 +200,53 @@ export default function LoginScreen() {
                   autoCapitalize="words"
                 />
               </View>
+            )}
+            {mode === "register" && (
+              <TouchableOpacity
+                onPress={() => setFacultyOpen(true)}
+                style={styles.field}
+                testID="faculty-select"
+                activeOpacity={0.7}
+              >
+                <Ionicons name="school-outline" size={18} color={COLORS.textMuted} />
+                <Text style={[styles.input, !faculty && { color: COLORS.textMuted }]} numberOfLines={1}>
+                  {faculty || "Selecciona tu facultad"}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            )}
+            {mode === "register" && (
+              <View style={styles.field}>
+                <Ionicons name="card-outline" size={18} color={COLORS.textMuted} />
+                <TextInput
+                  placeholder="CI (Documento de Identidad)"
+                  value={ci}
+                  onChangeText={setCi}
+                  style={styles.input}
+                  testID="ci-input"
+                  placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="characters"
+                />
+              </View>
+            )}
+            {mode === "register" && (
+              <View style={styles.field}>
+                <Ionicons name="ribbon-outline" size={18} color={COLORS.textMuted} />
+                <TextInput
+                  placeholder="CU (Documento Universitario)"
+                  value={cu}
+                  onChangeText={setCu}
+                  style={styles.input}
+                  testID="cu-input"
+                  placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="characters"
+                />
+              </View>
+            )}
+            {mode === "register" && (
+              <Text style={styles.docHint}>
+                📌 Debes ingresar al menos CI o CU. Con ese documento recogerás los premios en caso de ganar.
+              </Text>
             )}
             <View style={styles.field}>
               <Ionicons name="mail-outline" size={18} color={COLORS.textMuted} />
@@ -269,10 +329,45 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.brandFooter}>
-            <Image source={{ uri: ASSETS.gerabDevSoft }} style={styles.brandLogo} resizeMode="contain" />
+            <Image source={{ uri: ASSETS.yamile_hayes }} style={styles.brandLogo} resizeMode="contain" />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={facultyOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFacultyOpen(false)}
+      >
+        <View style={styles.modalWrap}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecciona tu facultad</Text>
+              <TouchableOpacity onPress={() => setFacultyOpen(false)} testID="faculty-close">
+                <Ionicons name="close" size={26} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={facultiesList}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.facRow, faculty === item && styles.facRowActive]}
+                  onPress={() => {
+                    setFaculty(item);
+                    setFacultyOpen(false);
+                  }}
+                  testID={`faculty-option-${item}`}
+                >
+                  <Text style={[styles.facText, faculty === item && styles.facTextActive]}>{item}</Text>
+                  {faculty === item && <Ionicons name="checkmark" size={20} color={COLORS.accent} />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -295,7 +390,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  title: { fontSize: 24, fontWeight: "900", color: COLORS.primaryDark },
+  title: { fontSize: 24, fontWeight: "900", color: COLORS.primaryDark, textAlign: "center" },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4, textAlign: "center" },
   tabs: { flexDirection: "row", backgroundColor: COLORS.surface, borderRadius: 12, padding: 4, marginBottom: 20 },
   tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
@@ -361,4 +456,13 @@ const styles = StyleSheet.create({
   googleBtnText: { color: COLORS.textPrimary, fontWeight: "700", fontSize: 15 },
   brandFooter: { alignItems: "center", justifyContent: "center", marginTop: 24, paddingBottom: 8 },
   brandLogo: { width: 140, height: 60 },
+  docHint: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16, paddingHorizontal: 4 },
+  modalWrap: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "flex-end" },
+  modal: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "80%", paddingBottom: 24 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalTitle: { fontSize: 18, fontWeight: "900", color: COLORS.primaryDark },
+  facRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  facRowActive: { backgroundColor: COLORS.successBg },
+  facText: { flex: 1, fontSize: 15, color: COLORS.textPrimary },
+  facTextActive: { color: COLORS.accentDarker, fontWeight: "700" },
 });

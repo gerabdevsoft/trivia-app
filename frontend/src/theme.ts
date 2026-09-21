@@ -6,33 +6,53 @@ export const API_BASE_URL: string =
   (Constants.expoConfig?.extra as any)?.EXPO_PUBLIC_BACKEND_URL ||
   "";
 
+// Paleta de marca (línea gráfica roja)
+// Rojo principal #E52233 · Rojo secundario #C91F1F · Coral #FF685E · Coral claro #FFA3AA · Blanco #FFFFFF
 export const COLORS = {
-  primary: "#0460c3",
-  primaryDark: "#002954",
-  primaryLight: "#00b8e2",
-  accent: "#57cc02",
-  accentDark: "#419902",
-  accentDarker: "#347a01",
+  primary: "#E52233",       // Rojo principal
+  primaryDark: "#C91F1F",   // Rojo secundario
+  primaryLight: "#FF685E",  // Coral
+  accent: "#FF685E",        // Coral (destacado / éxito)
+  accentDark: "#E52233",
+  accentDarker: "#C91F1F",
   background: "#FFFFFF",
-  surface: "#F5F8FA",
-  surfaceAlt: "#E6EFF9",
-  textPrimary: "#002954",
-  textSecondary: "#4A6583",
-  textMuted: "#7A8FA3",
-  border: "#E1E8F0",
-  error: "#FF3B30",
-  errorBg: "#FFECEB",
-  success: "#57cc02",
-  successBg: "#EEFADF",
+  surface: "#FFF5F6",       // Blanco tintado con coral claro
+  surfaceAlt: "#FFE1E3",    // Coral claro suavizado
+  textPrimary: "#1A1A1A",   // Casi negro para máxima legibilidad
+  textSecondary: "#4D4D4D",
+  textMuted: "#8A8A8A",
+  border: "#F2D9DB",        // Borde suave rosado
+  error: "#C91F1F",
+  errorBg: "#FFE1E3",
+  success: "#FF685E",       // Aciertos con coral
+  successBg: "#FFECEE",
   white: "#FFFFFF",
   black: "#000000",
-  overlay: "rgba(0, 41, 84, 0.6)",
+  overlay: "rgba(201, 31, 31, 0.55)",  // Overlay tinte rojo
+};
+
+// Pesos tipográficos autorizados
+export const FONT_WEIGHTS = {
+  bold: "700" as const,        // Nombre, titulares y llamadas
+  semiBold: "600" as const,    // Subtítulos y destacados
+  medium: "500" as const,      // Etiquetas, botones y pies
+  regular: "400" as const,     // Texto corrido y descripciones
+};
+
+// Jerarquía de tamaños de letras (referencia)
+export const FONT_SIZES = {
+  h1: 28,
+  h2: 22,
+  h3: 18,
+  title: 16,
+  body: 14,
+  label: 12,
+  caption: 11,
 };
 
 export const ASSETS = {
-  watermark: "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/871qvire_Fondo.jpg",
-  logos: "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/uv069adk_Logos.jpg",
-  gerabDevSoft: "https://customer-assets.emergentagent.com/job_quiz-points-raffle/artifacts/u0pqzdlp_Logo%20GerabDevSoft.jpg",
+  watermark: "https://github.com/gerabdevsoft/mis-assets/blob/eea82e824a87e857d68894e4d2a5262e43ea4d49/watermark.jpg",  
+  yamile_hayes: "https://github.com/gerabdevsoft/mis-assets/blob/eea82e824a87e857d68894e4d2a5262e43ea4d49/logo_yamile_hayes.jpg",
 };
 
 export const IS_WEB = Platform.OS === "web";

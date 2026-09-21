@@ -8,6 +8,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/auth";
+import { IdleGate } from "@/src/components/IdleGate";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 LogBox.ignoreAllLogs(true);
 
@@ -74,9 +76,13 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </AuthProvider>
+      <KeyboardProvider>
+        <AuthProvider>
+          <IdleGate>
+            <Stack screenOptions={{ headerShown: false }} />
+          </IdleGate>
+        </AuthProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

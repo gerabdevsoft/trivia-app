@@ -10,8 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.quizpointsraffle.fy1s6l",
-      "googleServicesFile": "./google-services.json",
+      "bundleIdentifier": "com.emergent.quizpointsraffle.fy1s6l",      
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Subir imágenes de premios al panel administrativo"
       }

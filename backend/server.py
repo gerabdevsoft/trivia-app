@@ -1168,18 +1168,76 @@ async def admin_delete_question(qid: str, _admin=Depends(require_admin)):
 async def admin_get_schedule(_admin=Depends(require_admin)):
     today_str = date_only(now_utc())
     schedule = await db.daily_schedules.find_one({"date": today_str}, {"_id": 0})
+    if schedule and isinstance(schedule.get("published_at"), datetime):
+        schedule["published_at"] = to_iso(schedule["published_at"])
     return schedule or {"date": today_str, "question_ids": []}
+
+
+@api_router.get("/admin/schedule/history")
+async def admin_schedule_history(_admin=Depends(require_admin)):
+    schedules = await db.daily_schedules.find({}, {"_id": 0}).to_list(500)
+    all_qids: set = set()
+    for s in schedules:
+        for qid in s.get("question_ids", []):
+            all_qids.add(qid)
+    questions = []
+    if all_qids:
+        questions = await db.questions.find({"question_id": {"$in": list(all_qids)}}, {"_id": 0}).to_list(len(all_qids))
+    q_map: Dict[str, Any] = {}
+    for q in questions:
+        if isinstance(q.get("created_at"), datetime):
+            q["created_at"] = to_iso(q["created_at"])
+        qid = q.get("question_id")
+        q["id"] = qid
+        if qid:
+            q_map[qid] = q
+    weekday_names = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    out = []
+    for s in schedules:
+        try:
+            d = datetime.strptime(s["date"], "%Y-%m-%d")
+        except Exception:
+            continue
+        weekday = d.weekday()
+        qs = [dict(q_map[qid]) for qid in s.get("question_ids", []) if qid in q_map]
+        published_at = s.get("published_at")
+        if isinstance(published_at, datetime):
+            published_at = to_iso(published_at)
+        out.append({
+            "date": s["date"],
+            "weekday": weekday,
+            "weekday_name": weekday_names[weekday],
+            "published_at": published_at,
+            "count": len(qs),
+            "questions": qs,
+        })
+    out.sort(key=lambda x: x["date"], reverse=True)
+    return {"schedules": out}
 
 
 @api_router.post("/admin/schedule")
 async def admin_set_schedule(body: ScheduleDaily, _admin=Depends(require_admin)):
     date_str = body.date or date_only(now_utc())
-    # Validate qids
-    valid = await db.questions.find({"question_id": {"$in": body.question_ids}, "active": True}, {"_id": 0, "question_id": 1}).to_list(1000)
-    valid_ids = {v["question_id"] for v in valid}
-    ordered = [q for q in body.question_ids if q in valid_ids]
+    # Validate: must be active AND not previously used in any schedule
+    valid = await db.questions.find(
+        {"question_id": {"$in": body.question_ids}, "active": True},
+        {"_id": 0, "question_id": 1, "used_in_schedule": 1, "statement": 1},
+    ).to_list(1000)
+    valid_map = {v["question_id"]: v for v in valid}
+    already_used = [v["statement"] for v in valid if v.get("used_in_schedule")]
+    if already_used:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Estas preguntas ya fueron usadas en un día previo y no pueden reutilizarse: {'; '.join(already_used[:3])}",
+        )
+    ordered = [q for q in body.question_ids if q in valid_map]
     if not ordered:
         raise HTTPException(400, "No valid active questions provided")
+    # Mark them as used so they cannot be scheduled again
+    await db.questions.update_many(
+        {"question_id": {"$in": ordered}},
+        {"$set": {"used_in_schedule": True, "used_in_date": date_str}},
+    )
     await db.daily_schedules.update_one(
         {"date": date_str},
         {"$set": {"date": date_str, "question_ids": ordered, "published_at": now_utc()}},

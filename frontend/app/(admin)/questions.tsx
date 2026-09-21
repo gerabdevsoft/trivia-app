@@ -8,10 +8,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/src/theme";
 import { api } from "@/src/lib/api";
@@ -23,10 +23,12 @@ type Q = {
   correct_index: number;
   category: string;
   active: boolean;
+  used_in_schedule?: boolean;
+  used_in_date?: string;
 };
 
 export default function AdminQuestions() {
-  const [tab, setTab] = useState<"bank" | "schedule">("bank");
+  const [tab, setTab] = useState<"bank" | "schedule" | "published">("bank");
   const [items, setItems] = useState<Q[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -37,20 +39,26 @@ export default function AdminQuestions() {
   const [toast, setToast] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [dailyCount, setDailyCount] = useState("5");
+  const [todaySchedule, setTodaySchedule] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
   const load = useCallback(async () => {
     try {
-      const [r, s, sched] = await Promise.all([
+      const [r, s, sched, hist] = await Promise.all([
         api.adminListQuestions(),
         api.adminGetSettings(),
         api.adminGetSchedule(),
+        api.adminScheduleHistory(),
       ]);
       setItems(r.questions as any);
       setSettings(s);
       setDailyCount(String(s?.daily_questions_count ?? 5));
-      setSelected(new Set(sched?.question_ids ?? []));
+      setTodaySchedule(sched);
+      setSelected(new Set());
+      setHistory(hist.schedules || []);
     } catch (e) { console.log(e); }
     finally { setLoading(false); }
   }, []);
@@ -145,7 +153,10 @@ export default function AdminQuestions() {
           <Text style={[styles.tabText, tab === "bank" && styles.tabTextActive]}>Banco</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setTab("schedule")} style={[styles.tabBtn, tab === "schedule" && styles.tabActive]} testID="tab-schedule">
-          <Text style={[styles.tabText, tab === "schedule" && styles.tabTextActive]}>Programar hoy ({selected.size})</Text>
+          <Text style={[styles.tabText, tab === "schedule" && styles.tabTextActive]}>Programar hoy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setTab("published")} style={[styles.tabBtn, tab === "published" && styles.tabActive]} testID="tab-published">
+          <Text style={[styles.tabText, tab === "published" && styles.tabTextActive]}>Publicadas</Text>
         </TouchableOpacity>
       </View>
 
@@ -163,6 +174,13 @@ export default function AdminQuestions() {
                     {q.active ? "Activa" : "Inactiva"}
                   </Text>
                 </View>
+                {q.used_in_schedule && (
+                  <View style={[styles.tag, { backgroundColor: COLORS.surfaceAlt }]}>
+                    <Text style={[styles.tagText, { color: COLORS.primaryDark }]}>
+                      Usada{q.used_in_date ? ` · ${q.used_in_date}` : ""}
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.cat}>{q.category}</Text>
               </View>
               <Text style={styles.statement}>{q.statement}</Text>
@@ -190,63 +208,145 @@ export default function AdminQuestions() {
             </View>
           ))}
         </ScrollView>
-      ) : (
+      ) : tab === "schedule" ? (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <View style={styles.settingsCard}>
-            <Text style={styles.settingsLabel}>Cantidad de preguntas diarias (X)</Text>
-            <View style={styles.settingsRow}>
-              <TextInput
-                value={dailyCount}
-                onChangeText={setDailyCount}
-                keyboardType="number-pad"
-                style={styles.settingsInput}
-                testID="daily-count-input"
-              />
-              <TouchableOpacity onPress={saveSettings} style={styles.saveBtn} testID="save-settings">
-                <Text style={styles.saveBtnText}>Guardar</Text>
+          {todaySchedule && (todaySchedule.question_ids?.length ?? 0) > 0 ? (
+            <View style={styles.alreadyBox} testID="already-published">
+              <Ionicons name="checkmark-done-circle" size={40} color={COLORS.accent} />
+              <Text style={styles.alreadyTitle}>Ya se publicaron preguntas hoy</Text>
+              <Text style={styles.alreadyText}>
+                Se publicaron {todaySchedule.question_ids.length} preguntas el {todaySchedule.date}.
+                {"\n"}Puedes ver el detalle en la pestaña "Publicadas".
+              </Text>
+              <TouchableOpacity style={styles.goPublishedBtn} onPress={() => setTab("published")}>
+                <Text style={styles.goPublishedText}>Ver publicaciones →</Text>
               </TouchableOpacity>
             </View>
-          </View>
-
-          <Text style={styles.helperText}>
-            Selecciona {settings?.daily_questions_count ?? 5} preguntas activas para el día. Al publicar se enviará una notificación push.
-          </Text>
-
-          {items?.filter(q => q.active).map((q) => {
-            const isSel = selected.has(q.id);
-            return (
-              <TouchableOpacity
-                key={q.id}
-                onPress={() => toggleSelect(q.id)}
-                style={[styles.selCard, isSel && styles.selCardActive]}
-                testID={`sel-q-${q.id}`}
-              >
-                <Ionicons name={isSel ? "checkmark-circle" : "ellipse-outline"} size={22} color={isSel ? COLORS.accent : COLORS.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.selStatement}>{q.statement}</Text>
-                  <Text style={styles.selCat}>{q.category}</Text>
+          ) : (
+            <>
+              <View style={styles.settingsCard}>
+                <Text style={styles.settingsLabel}>Cantidad de preguntas diarias (X)</Text>
+                <View style={styles.settingsRow}>
+                  <TextInput
+                    value={dailyCount}
+                    onChangeText={setDailyCount}
+                    keyboardType="number-pad"
+                    style={styles.settingsInput}
+                    testID="daily-count-input"
+                  />
+                  <TouchableOpacity onPress={saveSettings} style={styles.saveBtn} testID="save-settings">
+                    <Text style={styles.saveBtnText}>Guardar</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            );
-          })}
+              </View>
 
-          <TouchableOpacity style={styles.publishBtn} onPress={publish} disabled={busy} testID="publish-button">
-            {busy ? <ActivityIndicator color={COLORS.white} /> : (
-              <>
-                <Ionicons name="send" size={18} color={COLORS.white} />
-                <Text style={styles.publishText}>Publicar preguntas del día</Text>
-              </>
-            )}
-          </TouchableOpacity>
+              <Text style={styles.helperText}>
+                Selecciona {settings?.daily_questions_count ?? 5} preguntas activas para el día. Al publicar se enviará una notificación push.
+                {"\n"}⚠️ Sólo se muestran preguntas nunca antes usadas. Una vez publicadas, quedarán marcadas como "Usada" y no podrán reutilizarse.
+              </Text>
+
+              {items?.filter(q => q.active && !q.used_in_schedule).length === 0 ? (
+                <View style={styles.emptyPubBox}>
+                  <Ionicons name="hourglass-outline" size={40} color={COLORS.textMuted} />
+                  <Text style={styles.emptyPubText}>No hay preguntas disponibles para publicar. Crea nuevas en el Banco.</Text>
+                </View>
+              ) : (
+                items?.filter(q => q.active && !q.used_in_schedule).map((q) => {
+                  const isSel = selected.has(q.id);
+                  return (
+                    <TouchableOpacity
+                      key={q.id}
+                      onPress={() => toggleSelect(q.id)}
+                      style={[styles.selCard, isSel && styles.selCardActive]}
+                      testID={`sel-q-${q.id}`}
+                    >
+                      <Ionicons name={isSel ? "checkmark-circle" : "ellipse-outline"} size={22} color={isSel ? COLORS.accent : COLORS.textMuted} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.selStatement}>{q.statement}</Text>
+                        <Text style={styles.selCat}>{q.category}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+
+              <TouchableOpacity style={styles.publishBtn} onPress={publish} disabled={busy} testID="publish-button">
+                {busy ? <ActivityIndicator color={COLORS.white} /> : (
+                  <>
+                    <Ionicons name="send" size={18} color={COLORS.white} />
+                    <Text style={styles.publishText}>Publicar preguntas del día ({selected.size})</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          {history.length === 0 ? (
+            <View style={styles.emptyPubBox}>
+              <Ionicons name="newspaper-outline" size={40} color={COLORS.textMuted} />
+              <Text style={styles.emptyPubText}>Aún no hay publicaciones. Publica en "Programar hoy".</Text>
+            </View>
+          ) : (
+            history.map((s) => {
+              const expanded = expandedDate === s.date;
+              const [y, m, d] = s.date.split("-");
+              const dateLabel = `${s.weekday_name} ${d}/${m}/${y}`;
+              return (
+                <View key={s.date} style={styles.pubCard} testID={`pub-day-${s.date}`}>
+                  <TouchableOpacity
+                    onPress={() => setExpandedDate(expanded ? null : s.date)}
+                    style={styles.pubHeader}
+                    testID={`pub-toggle-${s.date}`}
+                  >
+                    <View style={styles.pubDot}>
+                      <Ionicons name="calendar" size={18} color={COLORS.white} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pubDate}>{dateLabel}</Text>
+                      <Text style={styles.pubCount}>{s.count} preguntas publicadas</Text>
+                    </View>
+                    <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={22} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                  {expanded && (
+                    <View style={styles.pubBody}>
+                      {s.questions.map((q: any, idx: number) => (
+                        <View key={q.id} style={styles.pubQ}>
+                          <Text style={styles.pubQIdx}>#{idx + 1}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.pubQStatement}>{q.statement}</Text>
+                            <Text style={styles.pubQCat}>{q.category}</Text>
+                            {q.options.map((opt: string, i: number) => (
+                              <Text
+                                key={i}
+                                style={[styles.pubQOpt, i === q.correct_index && styles.pubQOptCorrect]}
+                              >
+                                {i === q.correct_index ? "✓ " : "• "}{opt}
+                              </Text>
+                            ))}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
         </ScrollView>
       )}
 
       {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
 
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
-        <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.modalWrap}>
           <View style={styles.modal}>
-            <ScrollView>
+            <KeyboardAwareScrollView
+              bottomOffset={20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={styles.modalTitle}>{editing ? "Editar pregunta" : "Nueva pregunta"}</Text>
               <TextInput placeholder="Enunciado" value={form.statement} onChangeText={(v) => setForm({ ...form, statement: v })} style={[styles.input, { minHeight: 60 }]} multiline testID="q-statement" placeholderTextColor={COLORS.textMuted} />
               <TextInput placeholder="Categoría" value={form.category} onChangeText={(v) => setForm({ ...form, category: v })} style={styles.input} testID="q-category" placeholderTextColor={COLORS.textMuted} />
@@ -273,9 +373,9 @@ export default function AdminQuestions() {
                   {busy ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.btnPrimaryText}>Guardar</Text>}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -318,6 +418,25 @@ const styles = StyleSheet.create({
   selCat: { fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", fontWeight: "700", marginTop: 2 },
   publishBtn: { marginTop: 16, backgroundColor: COLORS.accent, padding: 16, borderRadius: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
   publishText: { color: COLORS.white, fontWeight: "800", fontSize: 15 },
+  alreadyBox: { backgroundColor: COLORS.successBg, borderWidth: 2, borderColor: COLORS.accent, borderRadius: 16, padding: 20, alignItems: "center", marginBottom: 16 },
+  alreadyTitle: { fontSize: 18, fontWeight: "800", color: COLORS.primaryDark, marginTop: 10 },
+  alreadyText: { fontSize: 13, color: COLORS.textSecondary, textAlign: "center", marginTop: 6, lineHeight: 20 },
+  goPublishedBtn: { marginTop: 12, backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 },
+  goPublishedText: { color: COLORS.white, fontWeight: "700" },
+  emptyPubBox: { backgroundColor: COLORS.white, borderRadius: 14, padding: 24, alignItems: "center", borderWidth: 1, borderColor: COLORS.border },
+  emptyPubText: { color: COLORS.textSecondary, textAlign: "center", marginTop: 10, fontSize: 13 },
+  pubCard: { backgroundColor: COLORS.white, borderRadius: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, overflow: "hidden" },
+  pubHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  pubDot: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: "center", justifyContent: "center" },
+  pubDate: { fontSize: 15, fontWeight: "800", color: COLORS.primaryDark, textTransform: "capitalize" },
+  pubCount: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  pubBody: { padding: 14, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface, gap: 12 },
+  pubQ: { flexDirection: "row", gap: 10 },
+  pubQIdx: { color: COLORS.primary, fontWeight: "800", minWidth: 26 },
+  pubQStatement: { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary },
+  pubQCat: { fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", fontWeight: "700", marginTop: 2, marginBottom: 4 },
+  pubQOpt: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  pubQOptCorrect: { color: COLORS.accentDarker, fontWeight: "700" },
   modalWrap: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "flex-end" },
   modal: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: "90%" },
   modalTitle: { fontSize: 20, fontWeight: "900", color: COLORS.primaryDark, marginBottom: 12 },
@@ -330,3 +449,4 @@ const styles = StyleSheet.create({
   toast: { position: "absolute", left: 20, right: 20, bottom: 20, backgroundColor: COLORS.primaryDark, padding: 14, borderRadius: 12 },
   toastText: { color: COLORS.white, textAlign: "center", fontWeight: "600" },
 });
+
