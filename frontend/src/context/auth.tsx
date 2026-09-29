@@ -82,8 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [registerPush]);
 
-  const applySessionResponse = useCallback(async (res: { session_token: string; user: any }) => {
-    console.log("=== RESPUESTA COMPLETA DE FASTAPI ===", JSON.stringify(res, null, 2));
+  const applySessionResponse = useCallback(async (res: { session_token: string; user: any }) => {    
     const token = typeof res?.session_token === 'object' 
       ? JSON.stringify(res.session_token) 
       : String(res?.session_token || '');

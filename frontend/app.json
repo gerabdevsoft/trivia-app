@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Trivia Usfx",
+    "name": "Yamile Hayes",
     "slug": "trivia-usfx",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "triviausfx",
@@ -21,11 +21,9 @@
         "backgroundColor": "#002954"
       },
       "edgeToEdgeEnabled": true,
-      "package": "soft.dev.gerab.usfx.trivia",      
-      "permissions": [
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
+      "package": "soft.dev.gerab.usfx.trivia", 
+       "versionCode": 4,     
+      "permissions": [        
       ]
     },
     "web": {

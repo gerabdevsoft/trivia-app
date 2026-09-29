@@ -7,13 +7,12 @@ import {
   Image,
   ActivityIndicator,
   Platform,
-  TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
+  TextInput,  
   Modal,
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
@@ -150,189 +149,250 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScrollView
+        bottomOffset={20}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll} // Pasamos los estilos del contenedor aquí
       >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.hero}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="trophy" size={56} color={COLORS.white} />
-            </View>
-            <Text style={styles.title} testID="app-title">Yamile Hayes Pregunta</Text>
-            <Text style={styles.subtitle}>
-              Responde, acumula puntos y gana premios
+        <View style={styles.hero}>
+          <View style={styles.iconCircle}>
+            {/*<Ionicons name="trophy" size={56} color={COLORS.white} />*/}
+            <Image
+              source={ASSETS.yamile_hayes_circulo}
+              style={styles.brandHeader}
+              resizeMode="contain"              
+            />
+          </View>
+          <Text style={styles.title} testID="app-title">
+            Yamile Hayes Pregunta
+          </Text>
+          <Text style={styles.subtitle}>
+            Responde, acumula puntos y gana premios
+          </Text>
+        </View>
+
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            onPress={() => setMode("login")}
+            style={[styles.tabBtn, mode === "login" && styles.tabActive]}
+            testID="tab-login"
+          >
+            <Text
+              style={[styles.tabText, mode === "login" && styles.tabTextActive]}
+            >
+              Iniciar sesión
             </Text>
-          </View>
-
-          <View style={styles.tabs}>
-            <TouchableOpacity
-              onPress={() => setMode("login")}
-              style={[styles.tabBtn, mode === "login" && styles.tabActive]}
-              testID="tab-login"
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setMode("register")}
+            style={[styles.tabBtn, mode === "register" && styles.tabActive]}
+            testID="tab-register"
+          >
+            <Text
+              style={[
+                styles.tabText,
+                mode === "register" && styles.tabTextActive,
+              ]}
             >
-              <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>Iniciar sesión</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setMode("register")}
-              style={[styles.tabBtn, mode === "register" && styles.tabActive]}
-              testID="tab-register"
-            >
-              <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>Crear cuenta</Text>
-            </TouchableOpacity>
-          </View>
+              Crear cuenta
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.form}>
-            {mode === "register" && (
-              <View style={styles.field}>
-                <Ionicons name="person-outline" size={18} color={COLORS.textMuted} />
-                <TextInput
-                  placeholder="Nombre completo"
-                  value={name}
-                  onChangeText={setName}
-                  style={styles.input}
-                  testID="name-input"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="words"
-                />
-              </View>
-            )}
-            {mode === "register" && (
-              <TouchableOpacity
-                onPress={() => setFacultyOpen(true)}
-                style={styles.field}
-                testID="faculty-select"
-                activeOpacity={0.7}
+        <View style={styles.form}>
+          {mode === "register" && (
+            <View style={styles.field}>
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={COLORS.textMuted}
+              />
+              <TextInput
+                placeholder="Nombre completo"
+                value={name}
+                onChangeText={setName}
+                style={styles.input}
+                testID="name-input"
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="words"
+              />
+            </View>
+          )}
+          {mode === "register" && (
+            <TouchableOpacity
+              onPress={() => setFacultyOpen(true)}
+              style={styles.field}
+              testID="faculty-select"
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="school-outline"
+                size={18}
+                color={COLORS.textMuted}
+              />
+              <Text
+                style={[styles.input, !faculty && { color: COLORS.textMuted }]}
+                numberOfLines={1}
               >
-                <Ionicons name="school-outline" size={18} color={COLORS.textMuted} />
-                <Text style={[styles.input, !faculty && { color: COLORS.textMuted }]} numberOfLines={1}>
-                  {faculty || "Selecciona tu facultad"}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            )}
-            {mode === "register" && (
-              <View style={styles.field}>
-                <Ionicons name="card-outline" size={18} color={COLORS.textMuted} />
-                <TextInput
-                  placeholder="CI (Documento de Identidad)"
-                  value={ci}
-                  onChangeText={setCi}
-                  style={styles.input}
-                  testID="ci-input"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="characters"
-                />
-              </View>
-            )}
-            {mode === "register" && (
-              <View style={styles.field}>
-                <Ionicons name="ribbon-outline" size={18} color={COLORS.textMuted} />
-                <TextInput
-                  placeholder="CU (Documento Universitario)"
-                  value={cu}
-                  onChangeText={setCu}
-                  style={styles.input}
-                  testID="cu-input"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="characters"
-                />
-              </View>
-            )}
-            {mode === "register" && (
-              <Text style={styles.docHint}>
-                📌 Debes ingresar al menos CI o CU. Con ese documento recogerás los premios en caso de ganar.
+                {faculty || "Selecciona tu facultad"}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+          )}
+          {mode === "register" && (
+            <View style={styles.field}>
+              <Ionicons
+                name="card-outline"
+                size={18}
+                color={COLORS.textMuted}
+              />
+              <TextInput
+                placeholder="CI (Documento de Identidad)"
+                value={ci}
+                onChangeText={setCi}
+                style={styles.input}
+                testID="ci-input"
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="characters"
+              />
+            </View>
+          )}
+          {mode === "register" && (
+            <View style={styles.field}>
+              <Ionicons
+                name="ribbon-outline"
+                size={18}
+                color={COLORS.textMuted}
+              />
+              <TextInput
+                placeholder="CU (Documento Universitario)"
+                value={cu}
+                onChangeText={setCu}
+                style={styles.input}
+                testID="cu-input"
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="characters"
+              />
+            </View>
+          )}
+          {mode === "register" && (
+            <Text style={styles.docHint}>
+              📌 Debes ingresar al menos CI o CU. Con ese documento recogerás
+              los premios en caso de ganar.
+            </Text>
+          )}
+          <View style={styles.field}>
+            <Ionicons name="mail-outline" size={18} color={COLORS.textMuted} />
+            <TextInput
+              placeholder="Correo electrónico"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              testID="email-input"
+              placeholderTextColor={COLORS.textMuted}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+            />
+          </View>
+          <View style={styles.field}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={18}
+              color={COLORS.textMuted}
+            />
+            <TextInput
+              placeholder="Contraseña"
+              value={password}
+              onChangeText={setPassword}
+              style={styles.input}
+              testID="password-input"
+              placeholderTextColor={COLORS.textMuted}
+              secureTextEntry={!showPass}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              onPress={() => setShowPass(!showPass)}
+              testID="toggle-password-visibility"
+            >
+              <Ionicons
+                name={showPass ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {mode === "login" && (
+            <TouchableOpacity
+              onPress={() => router.push("/forgot-password" as any)}
+              testID="forgot-link"
+            >
+              <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
+            </TouchableOpacity>
+          )}
+
+          {errorMsg ? (
+            <View style={styles.errorBox} testID="login-error">
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          ) : null}
+          {infoMsg ? (
+            <View style={styles.infoBox} testID="login-info">
+              <Text style={styles.infoText}>{infoMsg}</Text>
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, busy && styles.disabled]}
+            onPress={handleSubmit}
+            disabled={busy}
+            testID="submit-button"
+          >
+            {busy ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.primaryBtnText}>
+                {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
               </Text>
             )}
-            <View style={styles.field}>
-              <Ionicons name="mail-outline" size={18} color={COLORS.textMuted} />
-              <TextInput
-                placeholder="Correo electrónico"
-                value={email}
-                onChangeText={setEmail}
-                style={styles.input}
-                testID="email-input"
-                placeholderTextColor={COLORS.textMuted}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-            </View>
-            <View style={styles.field}>
-              <Ionicons name="lock-closed-outline" size={18} color={COLORS.textMuted} />
-              <TextInput
-                placeholder="Contraseña"
-                value={password}
-                onChangeText={setPassword}
-                style={styles.input}
-                testID="password-input"
-                placeholderTextColor={COLORS.textMuted}
-                secureTextEntry={!showPass}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity onPress={() => setShowPass(!showPass)} testID="toggle-password-visibility">
-                <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
+          </TouchableOpacity>
 
-            {mode === "login" && (
-              <TouchableOpacity onPress={() => router.push("/forgot-password" as any)} testID="forgot-link">
-                <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
-              </TouchableOpacity>
-            )}
-
-            {errorMsg ? (
-              <View style={styles.errorBox} testID="login-error">
-                <Text style={styles.errorText}>{errorMsg}</Text>
-              </View>
-            ) : null}
-            {infoMsg ? (
-              <View style={styles.infoBox} testID="login-info">
-                <Text style={styles.infoText}>{infoMsg}</Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.primaryBtn, busy && styles.disabled]}
-              onPress={handleSubmit}
-              disabled={busy}
-              testID="submit-button"
-            >
-              {busy ? (
-                <ActivityIndicator color={COLORS.white} />
-              ) : (
-                <Text style={styles.primaryBtnText}>
-                  {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>o continúa con</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.googleBtn, busy && styles.disabled]}
-              onPress={handleGoogleLogin}
-              disabled={busy}
-              testID="google-signin-button"
-            >
-              <Ionicons name="logo-google" size={20} color={COLORS.primary} style={{ marginRight: 10 }} />
-              <Text style={styles.googleBtnText}>Google</Text>
-            </TouchableOpacity>
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o continúa con</Text>
+            <View style={styles.dividerLine} />
           </View>
 
-          <View style={styles.brandFooter}>
-            <Image source={{ uri: ASSETS.yamile_hayes }} style={styles.brandLogo} resizeMode="contain" />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <TouchableOpacity
+            style={[styles.googleBtn, busy && styles.disabled]}
+            onPress={handleGoogleLogin}
+            disabled={busy}
+            testID="google-signin-button"
+          >
+            <Ionicons
+              name="logo-google"
+              size={20}
+              color={COLORS.primary}
+              style={{ marginRight: 10 }}
+            />
+            <Text style={styles.googleBtnText}>Google</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.brandFooter}>
+          <Image
+            source={ASSETS.yamile_hayes}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
+        </View>
+      </KeyboardAwareScrollView>
 
       <Modal
         visible={facultyOpen}
@@ -344,7 +404,10 @@ export default function LoginScreen() {
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecciona tu facultad</Text>
-              <TouchableOpacity onPress={() => setFacultyOpen(false)} testID="faculty-close">
+              <TouchableOpacity
+                onPress={() => setFacultyOpen(false)}
+                testID="faculty-close"
+              >
                 <Ionicons name="close" size={26} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -353,15 +416,31 @@ export default function LoginScreen() {
               keyExtractor={(item) => item}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[styles.facRow, faculty === item && styles.facRowActive]}
+                  style={[
+                    styles.facRow,
+                    faculty === item && styles.facRowActive,
+                  ]}
                   onPress={() => {
                     setFaculty(item);
                     setFacultyOpen(false);
                   }}
                   testID={`faculty-option-${item}`}
                 >
-                  <Text style={[styles.facText, faculty === item && styles.facTextActive]}>{item}</Text>
-                  {faculty === item && <Ionicons name="checkmark" size={20} color={COLORS.accent} />}
+                  <Text
+                    style={[
+                      styles.facText,
+                      faculty === item && styles.facTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                  {faculty === item && (
+                    <Ionicons
+                      name="checkmark"
+                      size={20}
+                      color={COLORS.accent}
+                    />
+                  )}
                 </TouchableOpacity>
               )}
             />
@@ -377,8 +456,8 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 24, paddingBottom: 20, flexGrow: 1 },
   hero: { alignItems: "center", marginTop: 24, marginBottom: 20 },
   iconCircle: {
-    width: 96,
-    height: 96,
+    width: 112,
+    height: 128,
     borderRadius: 48,
     backgroundColor: COLORS.primary,
     alignItems: "center",
@@ -389,12 +468,41 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 6,
+    overflow: "hidden",
   },
-  title: { fontSize: 24, fontWeight: "900", color: COLORS.primaryDark, textAlign: "center" },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4, textAlign: "center" },
-  tabs: { flexDirection: "row", backgroundColor: COLORS.surface, borderRadius: 12, padding: 4, marginBottom: 20 },
-  tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
-  tabActive: { backgroundColor: COLORS.white, shadowColor: COLORS.primaryDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  title: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: COLORS.primaryDark,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  tabs: {
+    flexDirection: "row",
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  tabActive: {
+    backgroundColor: COLORS.white,
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   tabText: { color: COLORS.textMuted, fontWeight: "700", fontSize: 14 },
   tabTextActive: { color: COLORS.primaryDark },
   form: { gap: 12 },
@@ -408,8 +516,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: COLORS.white,
   },
-  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: COLORS.textPrimary },
-  forgot: { color: COLORS.primary, fontWeight: "600", textAlign: "right", fontSize: 13 },
+  input: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  forgot: {
+    color: COLORS.primary,
+    fontWeight: "600",
+    textAlign: "right",
+    fontSize: 13,
+  },
   errorBox: {
     backgroundColor: COLORS.errorBg,
     borderRadius: 12,
@@ -440,7 +558,12 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: { color: COLORS.white, fontSize: 16, fontWeight: "800" },
   disabled: { opacity: 0.6 },
-  divider: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginVertical: 4,
+  },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
   dividerText: { color: COLORS.textMuted, fontSize: 12 },
   googleBtn: {
@@ -454,14 +577,52 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   googleBtnText: { color: COLORS.textPrimary, fontWeight: "700", fontSize: 15 },
-  brandFooter: { alignItems: "center", justifyContent: "center", marginTop: 24, paddingBottom: 8 },
+  brandHeader: {
+    width: 128,
+    height: 128,
+  },
+  brandFooter: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
+    paddingBottom: 8,
+  },
   brandLogo: { width: 140, height: 60 },
-  docHint: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16, paddingHorizontal: 4 },
-  modalWrap: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "flex-end" },
-  modal: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "80%", paddingBottom: 24 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  docHint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+    paddingHorizontal: 4,
+  },
+  modalWrap: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: "flex-end",
+  },
+  modal: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "80%",
+    paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
   modalTitle: { fontSize: 18, fontWeight: "900", color: COLORS.primaryDark },
-  facRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  facRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
   facRowActive: { backgroundColor: COLORS.successBg },
   facText: { flex: 1, fontSize: 15, color: COLORS.textPrimary },
   facTextActive: { color: COLORS.accentDarker, fontWeight: "700" },

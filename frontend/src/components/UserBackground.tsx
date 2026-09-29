@@ -9,7 +9,7 @@ export function UserBackground({ children }: { children: ReactNode }) {
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
       <ImageBackground
-        source={{ uri: ASSETS.watermark }}
+        source={ASSETS.watermark}
         style={styles.bg}
         imageStyle={styles.bgImage}
         resizeMode="repeat"

@@ -50,9 +50,11 @@ export const FONT_SIZES = {
   caption: 11,
 };
 
-export const ASSETS = {
-  watermark: "https://github.com/gerabdevsoft/mis-assets/blob/eea82e824a87e857d68894e4d2a5262e43ea4d49/watermark.jpg",  
-  yamile_hayes: "https://github.com/gerabdevsoft/mis-assets/blob/eea82e824a87e857d68894e4d2a5262e43ea4d49/logo_yamile_hayes.jpg",
+export const ASSETS = {  
+  watermark: require('./../assets/images/watermark.jpg'),
+  yamile_hayes: require('./../assets/images/logo_yamile_hayes.jpg'),
+  yamile_hayes_vice: require('./../assets/images/foto_yamile_hayes.jpg'),  
+  yamile_hayes_circulo: require('./../assets/images/foto_circulo_yamile_hayes.jpg'),
 };
 
 export const IS_WEB = Platform.OS === "web";

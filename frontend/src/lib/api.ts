@@ -26,7 +26,7 @@ async function request<T = any>(
     ...(init.headers as Record<string, string> | undefined),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const url = `${API_BASE_URL}${path}`;
+  const url = `${API_BASE_URL}/api${path}`;
   const res = await fetch(url, { ...init, headers });
   const contentType = res.headers.get("content-type") || "";
   const body = contentType.includes("application/json") ? await res.json() : await res.text();
@@ -52,10 +52,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id_token }),
     }),
-  register: (name: string, email: string, password: string) =>
+  register: (name: string, email: string, password: string, faculty: string, ci: string | null, cu: string | null) =>
     request<{ session_token: string; user: any }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, faculty, ci: ci || undefined, cu: cu || undefined }),
     }),
   login: (email: string, password: string) =>
     request<{ session_token: string; user: any }>("/auth/login", {
@@ -90,6 +90,9 @@ export const api = {
       { method: "POST", body: JSON.stringify({ question_id, selected_index }) },
     ),
   history: () => request<{ history: any[] }>("/me/history"),
+  faculties: () => request<{ faculties: string[] }>("/faculties"),
+  updateProfile: (payload: { faculty?: string; ci?: string | null; cu?: string | null }) =>
+    request<any>("/me/profile", { method: "PUT", body: JSON.stringify(payload) }),
   myWins: () => request<{ wins: any[] }>("/me/wins"),
   ackWin: (raffle_id: string) =>
     request("/me/wins/ack", { method: "POST", body: JSON.stringify({ raffle_id }) }),
@@ -114,6 +117,7 @@ export const api = {
     request(`/admin/questions/${qid}`, { method: "DELETE" }),
 
   adminGetSchedule: () => request<any>("/admin/schedule/today"),
+  adminScheduleHistory: () => request<{ schedules: any[] }>("/admin/schedule/history"),
   adminSetSchedule: (question_ids: string[]) =>
     request<any>("/admin/schedule", { method: "POST", body: JSON.stringify({ question_ids }) }),
 

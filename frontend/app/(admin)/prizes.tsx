@@ -9,10 +9,10 @@ import {
   ActivityIndicator,
   Modal,
   Image,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "@/src/theme";
@@ -60,11 +60,9 @@ export default function AdminPrizes() {
     setModalOpen(true);
   };
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showToast("Permiso denegado"); return; }
+  const pickImage = async () => {    
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.6,
       base64: true,
     });
@@ -105,92 +103,249 @@ export default function AdminPrizes() {
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title} testID="admin-prizes-title">Premios</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openCreate} testID="new-prize-button">
+        <Text style={styles.title} testID="admin-prizes-title">
+          Premios
+        </Text>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={openCreate}
+          testID="new-prize-button"
+        >
           <Ionicons name="add" size={20} color={COLORS.white} />
           <Text style={styles.addBtnText}>Nuevo</Text>
         </TouchableOpacity>
       </View>
-      {loading ? <ActivityIndicator color={COLORS.primary} style={{ marginTop: 30 }} /> : (
+      {loading ? (
+        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 30 }} />
+      ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           {prizes.length === 0 ? (
             <Text style={styles.empty}>Crea el primer premio</Text>
-          ) : prizes.map((p) => (
-            <View key={p.prize_id} style={styles.card} testID={`admin-prize-${p.prize_id}`}>
-              {p.has_image ? (
-                <Image source={{ uri: api.prizeImageUrl(p.prize_id) }} style={styles.image} />
-              ) : (
-                <View style={[styles.image, styles.imgPlaceholder]}>
-                  <Ionicons name="image-outline" size={40} color={COLORS.textMuted} />
-                </View>
-              )}
-              <View style={{ flex: 1, padding: 12 }}>
-                <View style={styles.rowBetween}>
-                  <View style={[styles.tag, { backgroundColor: p.prize_type === "weekly" ? COLORS.surfaceAlt : COLORS.successBg }]}>
-                    <Text style={[styles.tagText, { color: p.prize_type === "weekly" ? COLORS.primary : COLORS.accentDarker }]}>
-                      {p.prize_type === "weekly" ? "Semanal" : "Activos"}
-                    </Text>
+          ) : (
+            prizes.map((p) => (
+              <View
+                key={p.prize_id}
+                style={styles.card}
+                testID={`admin-prize-${p.prize_id}`}
+              >
+                {p.has_image ? (
+                  <Image
+                    source={{ uri: api.prizeImageUrl(p.prize_id) }}
+                    style={styles.image}
+                  />
+                ) : (
+                  <View style={[styles.image, styles.imgPlaceholder]}>
+                    <Ionicons
+                      name="image-outline"
+                      size={40}
+                      color={COLORS.textMuted}
+                    />
                   </View>
-                  {p.executed && (
-                    <View style={[styles.tag, { backgroundColor: COLORS.surface }]}>
-                      <Text style={[styles.tagText, { color: COLORS.textMuted }]}>Sorteado</Text>
+                )}
+                <View style={{ flex: 1, padding: 12 }}>
+                  <View style={styles.rowBetween}>
+                    <View
+                      style={[
+                        styles.tag,
+                        {
+                          backgroundColor:
+                            p.prize_type === "weekly"
+                              ? COLORS.surfaceAlt
+                              : COLORS.successBg,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tagText,
+                          {
+                            color:
+                              p.prize_type === "weekly"
+                                ? COLORS.primary
+                                : COLORS.accentDarker,
+                          },
+                        ]}
+                      >
+                        {p.prize_type === "weekly" ? "Semanal" : "Activos"}
+                      </Text>
                     </View>
+                    {p.executed && (
+                      <View
+                        style={[
+                          styles.tag,
+                          { backgroundColor: COLORS.surface },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.tagText, { color: COLORS.textMuted }]}
+                        >
+                          Sorteado
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.pname}>{p.name}</Text>
+                  {!!p.description && (
+                    <Text style={styles.pdesc} numberOfLines={2}>
+                      {p.description}
+                    </Text>
                   )}
-                </View>
-                <Text style={styles.pname}>{p.name}</Text>
-                {!!p.description && <Text style={styles.pdesc} numberOfLines={2}>{p.description}</Text>}
-                {!!p.draw_date && <Text style={styles.pdate}>Fecha: {p.draw_date}</Text>}
-                <View style={styles.actions}>
-                  {!p.executed && (
-                    <TouchableOpacity onPress={() => openEdit(p)} style={styles.actionBtn} testID={`edit-prize-${p.prize_id}`}>
-                      <Ionicons name="pencil" size={14} color={COLORS.primary} />
-                      <Text style={styles.actionText}>Editar</Text>
+                  {!!p.draw_date && (
+                    <Text style={styles.pdate}>Fecha: {p.draw_date}</Text>
+                  )}
+                  <View style={styles.actions}>
+                    {!p.executed && (
+                      <TouchableOpacity
+                        onPress={() => openEdit(p)}
+                        style={styles.actionBtn}
+                        testID={`edit-prize-${p.prize_id}`}
+                      >
+                        <Ionicons
+                          name="pencil"
+                          size={14}
+                          color={COLORS.primary}
+                        />
+                        <Text style={styles.actionText}>Editar</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => remove(p)}
+                      style={styles.actionBtn}
+                      testID={`del-prize-${p.prize_id}`}
+                    >
+                      <Ionicons name="trash" size={14} color={COLORS.error} />
+                      <Text
+                        style={[styles.actionText, { color: COLORS.error }]}
+                      >
+                        Borrar
+                      </Text>
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => remove(p)} style={styles.actionBtn} testID={`del-prize-${p.prize_id}`}>
-                    <Ionicons name="trash" size={14} color={COLORS.error} />
-                    <Text style={[styles.actionText, { color: COLORS.error }]}>Borrar</Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </ScrollView>
       )}
 
-      {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
+      {toast && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>{toast}</Text>
+        </View>
+      )}
 
-      <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
-        <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <Modal
+        visible={modalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalOpen(false)}
+      >
+        <View style={styles.modalWrap}>
           <View style={styles.modal}>
-            <ScrollView>
-              <Text style={styles.modalTitle}>{editing ? "Editar premio" : "Nuevo premio"}</Text>
-              <TextInput placeholder="Nombre" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} style={styles.input} testID="prize-name" placeholderTextColor={COLORS.textMuted} />
-              <TextInput placeholder="Descripción" value={form.description} onChangeText={(v) => setForm({ ...form, description: v })} style={[styles.input, { minHeight: 60 }]} multiline testID="prize-description" placeholderTextColor={COLORS.textMuted} />
-              <TextInput placeholder="Fecha (YYYY-MM-DD)" value={form.draw_date} onChangeText={(v) => setForm({ ...form, draw_date: v })} style={styles.input} testID="prize-date" placeholderTextColor={COLORS.textMuted} />
+            <KeyboardAwareScrollView
+              bottomOffset={20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalTitle}>
+                {editing ? "Editar premio" : "Nuevo premio"}
+              </Text>
+              <TextInput
+                placeholder="Nombre"
+                value={form.name}
+                onChangeText={(v) => setForm({ ...form, name: v })}
+                style={styles.input}
+                testID="prize-name"
+                placeholderTextColor={COLORS.textMuted}
+              />
+              <TextInput
+                placeholder="Descripción"
+                value={form.description}
+                onChangeText={(v) => setForm({ ...form, description: v })}
+                style={[styles.input, { minHeight: 60 }]}
+                multiline
+                testID="prize-description"
+                placeholderTextColor={COLORS.textMuted}
+              />
+              <TextInput
+                placeholder="Fecha (YYYY-MM-DD)"
+                value={form.draw_date}
+                onChangeText={(v) => setForm({ ...form, draw_date: v })}
+                style={styles.input}
+                testID="prize-date"
+                placeholderTextColor={COLORS.textMuted}
+              />
               <View style={styles.typeRow}>
-                <TouchableOpacity style={[styles.typeBtn, form.prize_type === "weekly" && styles.typeBtnActive]} onPress={() => setForm({ ...form, prize_type: "weekly" })} testID="type-weekly">
-                  <Text style={[styles.typeText, form.prize_type === "weekly" && styles.typeTextActive]}>Semanal</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.typeBtn,
+                    form.prize_type === "weekly" && styles.typeBtnActive,
+                  ]}
+                  onPress={() => setForm({ ...form, prize_type: "weekly" })}
+                  testID="type-weekly"
+                >
+                  <Text
+                    style={[
+                      styles.typeText,
+                      form.prize_type === "weekly" && styles.typeTextActive,
+                    ]}
+                  >
+                    Semanal
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.typeBtn, form.prize_type === "active" && styles.typeBtnActive]} onPress={() => setForm({ ...form, prize_type: "active" })} testID="type-active">
-                  <Text style={[styles.typeText, form.prize_type === "active" && styles.typeTextActive]}>Usuarios Activos</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.typeBtn,
+                    form.prize_type === "active" && styles.typeBtnActive,
+                  ]}
+                  onPress={() => setForm({ ...form, prize_type: "active" })}
+                  testID="type-active"
+                >
+                  <Text
+                    style={[
+                      styles.typeText,
+                      form.prize_type === "active" && styles.typeTextActive,
+                    ]}
+                  >
+                    Usuarios Activos
+                  </Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.pickBtn} onPress={pickImage} testID="pick-image">
+              <TouchableOpacity
+                style={styles.pickBtn}
+                onPress={pickImage}
+                testID="pick-image"
+              >
                 <Ionicons name="image" size={20} color={COLORS.primary} />
-                <Text style={styles.pickBtnText}>{form.image_base64 ? "Imagen seleccionada ✓" : "Seleccionar imagen"}</Text>
+                <Text style={styles.pickBtnText}>
+                  {form.image_base64
+                    ? "Imagen seleccionada ✓"
+                    : "Seleccionar imagen"}
+                </Text>
               </TouchableOpacity>
               <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
-                <TouchableOpacity onPress={() => setModalOpen(false)} style={[styles.btnGhost, { flex: 1 }]}>
+                <TouchableOpacity
+                  onPress={() => setModalOpen(false)}
+                  style={[styles.btnGhost, { flex: 1 }]}
+                >
                   <Text style={styles.btnGhostText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={save} disabled={busy} style={[styles.btnPrimary, { flex: 1 }]} testID="save-prize">
-                  {busy ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.btnPrimaryText}>Guardar</Text>}
+                <TouchableOpacity
+                  onPress={save}
+                  disabled={busy}
+                  style={[styles.btnPrimary, { flex: 1 }]}
+                  testID="save-prize"
+                >
+                  {busy ? (
+                    <ActivityIndicator color={COLORS.white} />
+                  ) : (
+                    <Text style={styles.btnPrimaryText}>Guardar</Text>
+                  )}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
