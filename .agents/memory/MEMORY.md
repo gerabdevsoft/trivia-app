@@ -1,0 +1,1 @@
+- [Import environment quirks](import-environment.md) — verify live port forwarding after configuration changes; Python HTTPS checks need the system CA bundle.

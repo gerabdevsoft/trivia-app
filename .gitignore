@@ -80,3 +80,9 @@ memory/test_credentials.md
 
 # Mobile development
 android-sdk/
+
+# Local Replit development data and caches
+.local/dev-mongo/
+frontend/.expo/
+frontend/.metro-cache/
+generated-artifacts/

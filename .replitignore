@@ -1,0 +1,4 @@
+.local/dev-mongo/
+frontend/.expo/
+frontend/.metro-cache/
+generated-artifacts/

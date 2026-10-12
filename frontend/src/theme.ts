@@ -2,9 +2,11 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 
 export const API_BASE_URL: string =
-  process.env.EXPO_PUBLIC_BACKEND_URL ||
-  (Constants.expoConfig?.extra as any)?.EXPO_PUBLIC_BACKEND_URL ||
-  "";
+  Platform.OS === "web"
+    ? ""
+    : process.env.EXPO_PUBLIC_BACKEND_URL ||
+      (Constants.expoConfig?.extra as any)?.EXPO_PUBLIC_BACKEND_URL ||
+      "";
 
 // Paleta de marca (línea gráfica roja)
 // Rojo principal #E52233 · Rojo secundario #C91F1F · Coral #FF685E · Coral claro #FFA3AA · Blanco #FFFFFF
