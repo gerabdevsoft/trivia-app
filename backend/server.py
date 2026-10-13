@@ -24,6 +24,7 @@ from fastapi.responses import Response as FastAPIResponse, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import DuplicateKeyError
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 # --- Load env ---
@@ -281,7 +282,7 @@ class QuestionForUser(BaseModel):
 
 class AnswerSubmit(BaseModel):
     question_id: str
-    selected_index: int
+    selected_index: Optional[int] = Field(default=None, ge=0, le=3)
 
 
 class AnswerResult(BaseModel):
@@ -289,6 +290,8 @@ class AnswerResult(BaseModel):
     correct_index: int
     points_awarded: int
     total_points: int
+    timed_out: bool = False
+    selected_index: Optional[int] = None
 
 
 class PrizeCreate(BaseModel):
@@ -612,6 +615,8 @@ async def on_startup():
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.questions.create_index("category")
     await db.answers.create_index([("user_id", 1), ("question_id", 1)], unique=True)
+    await db.question_attempts.create_index([("user_id", 1), ("question_id", 1)], unique=True)
+    await db.question_attempts.create_index([("user_id", 1), ("status", 1), ("deadline_at", 1)])
     await db.answers.create_index("answered_at")
     await db.daily_schedules.create_index("date", unique=True)
     await db.prizes.create_index("prize_type")
@@ -941,12 +946,124 @@ async def record_push_receipt(body: PushReceiptBody, user=Depends(get_current_us
 # =========================
 # User: Questions & Answers
 # =========================
+QUESTION_SECONDS = 10
+
+
+async def answer_result_for_existing(answer: dict, correct_index: int) -> AnswerResult:
+    user = await db.users.find_one({"user_id": answer["user_id"]}, {"total_points": 1})
+    return AnswerResult(
+        correct=answer["correct"],
+        correct_index=correct_index,
+        points_awarded=answer.get("points", 0),
+        total_points=int((user or {}).get("total_points", 0)),
+        timed_out=answer.get("timed_out", False),
+        selected_index=answer.get("selected_index"),
+    )
+
+
+async def record_timed_answer(attempt: dict, selected_index: Optional[int]) -> AnswerResult:
+    """Unique answer insertion makes expiration and answer retries idempotent."""
+    uid, qid = attempt["user_id"], attempt["question_id"]
+    existing = await db.answers.find_one({"user_id": uid, "question_id": qid})
+    if existing:
+        return await answer_result_for_existing(existing, attempt["correct_index"])
+    deadline = attempt["deadline_at"]
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+    timed_out = selected_index is None or now_utc() >= deadline
+    selected_index = None if timed_out else selected_index
+    correct = not timed_out and selected_index == attempt["correct_index"]
+    points = 1 if correct else 0
+    answer = {
+        "answer_id": f"a_{uuid.uuid4().hex[:12]}",
+        "user_id": uid,
+        "question_id": qid,
+        "selected_index": selected_index,
+        "correct": correct,
+        "points": points,
+        "timed_out": timed_out,
+        "answered_at": now_utc(),
+    }
+    try:
+        await db.answers.insert_one(answer)
+    except DuplicateKeyError:
+        existing = await db.answers.find_one({"user_id": uid, "question_id": qid})
+        return await answer_result_for_existing(existing, attempt["correct_index"])
+    updated = await db.users.find_one_and_update(
+        {"user_id": uid},
+        {"$inc": {"total_points": points, "correct_count": 1 if correct else 0, "incorrect_count": 0 if correct else 1}},
+        return_document=True,
+        projection={"_id": 0},
+    )
+    await db.question_attempts.update_one(
+        {"user_id": uid, "question_id": qid},
+        {"$set": {"status": "answered"}},
+    )
+    return AnswerResult(
+        correct=correct, correct_index=attempt["correct_index"], points_awarded=points,
+        total_points=int((updated or {}).get("total_points", 0)),
+        timed_out=timed_out, selected_index=selected_index,
+    )
+
+
+async def expire_question_attempts(user_id: str) -> None:
+    attempts = await db.question_attempts.find({
+        "user_id": user_id, "status": "active", "deadline_at": {"$lte": now_utc()},
+    }, {"_id": 0}).to_list(100)
+    for attempt in attempts:
+        await record_timed_answer(attempt, None)
+        await db.question_attempts.update_one(
+            {"user_id": user_id, "question_id": attempt["question_id"]},
+            {"$set": {"status": "answered"}},
+        )
+
+
+@api_router.post("/questions/{question_id}/start")
+async def start_question(question_id: str, user=Depends(get_current_user)):
+    await expire_question_attempts(user["user_id"])
+    today_str = date_only(now_utc())
+    schedule = await db.daily_schedules.find_one({"date": today_str})
+    qids = (schedule or {}).get("question_ids", [])
+    if question_id not in qids:
+        raise HTTPException(status_code=400, detail="Pregunta no programada para hoy")
+    question = await db.questions.find_one({"question_id": question_id, "active": True}, {"_id": 0})
+    if not question:
+        raise HTTPException(status_code=404, detail="Pregunta no disponible")
+    attempt = await db.question_attempts.find_one({"user_id": user["user_id"], "question_id": question_id}, {"_id": 0})
+    existing = await db.answers.find_one({"user_id": user["user_id"], "question_id": question_id})
+    if existing:
+        result = await answer_result_for_existing(existing, (attempt or question)["correct_index"])
+        return {"already_answered": True, "answer": result.model_dump(), "server_now": to_iso(now_utc())}
+    active_questions = await db.questions.find({"question_id": {"$in": qids}, "active": True}, {"question_id": 1}).to_list(100)
+    active_ids = {q["question_id"] for q in active_questions}
+    answered_ids = set(await db.answers.distinct("question_id", {"user_id": user["user_id"], "question_id": {"$in": qids}}))
+    next_id = next((qid for qid in qids if qid in active_ids and qid not in answered_ids), None)
+    if next_id != question_id:
+        raise HTTPException(status_code=409, detail="Responde primero la pregunta anterior")
+    if not attempt:
+        started_at = now_utc()
+        attempt = {
+            "user_id": user["user_id"], "question_id": question_id, "quiz_date": today_str,
+            "started_at": started_at, "deadline_at": started_at + timedelta(seconds=QUESTION_SECONDS),
+            "correct_index": question["correct_index"], "status": "active",
+        }
+        try:
+            await db.question_attempts.insert_one(attempt)
+        except DuplicateKeyError:
+            attempt = await db.question_attempts.find_one({"user_id": user["user_id"], "question_id": question_id}, {"_id": 0})
+    return {
+        "already_answered": False, "question_id": question_id,
+        "deadline_at": to_iso(attempt["deadline_at"]), "server_now": to_iso(now_utc()),
+    }
+
+
 @api_router.get("/questions/today")
 async def get_today_questions(user=Depends(get_current_user)):
+    await expire_question_attempts(user["user_id"])
     today_str = date_only(now_utc())
     schedule = await db.daily_schedules.find_one({"date": today_str}, {"_id": 0})
     if not schedule or not schedule.get("question_ids"):
-        return {"date": today_str, "questions": []}
+        return {"date": today_str, "questions": [], "server_now": to_iso(now_utc())}
     qids = schedule["question_ids"]
     questions = await db.questions.find({"question_id": {"$in": qids}, "active": True}, {"_id": 0}).to_list(100)
     # Preserve schedule order
@@ -955,6 +1072,8 @@ async def get_today_questions(user=Depends(get_current_user)):
     # Fetch answers
     answers = await db.answers.find({"user_id": user["user_id"], "question_id": {"$in": qids}}, {"_id": 0}).to_list(100)
     a_map = {a["question_id"]: a for a in answers}
+    attempts = await db.question_attempts.find({"user_id": user["user_id"], "question_id": {"$in": qids}}, {"_id": 0}).to_list(100)
+    attempt_map = {a["question_id"]: a for a in attempts}
     out = []
     for q in ordered:
         a = a_map.get(q["question_id"])
@@ -967,8 +1086,10 @@ async def get_today_questions(user=Depends(get_current_user)):
             "selected_index": a.get("selected_index") if a else None,
             "was_correct": a.get("correct") if a else None,
             "correct_index": q["correct_index"] if a else None,
+            "timed_out": a.get("timed_out", False) if a else False,
+            "deadline_at": to_iso(attempt_map[q["question_id"]]["deadline_at"]) if q["question_id"] in attempt_map else None,
         })
-    return {"date": today_str, "questions": out}
+    return {"date": today_str, "questions": out, "server_now": to_iso(now_utc())}
 
 
 @api_router.post("/answers", response_model=AnswerResult)
@@ -981,36 +1102,10 @@ async def submit_answer(body: AnswerSubmit, user=Depends(get_current_user)):
     schedule = await db.daily_schedules.find_one({"date": today_str})
     if not schedule or body.question_id not in schedule.get("question_ids", []):
         raise HTTPException(status_code=400, detail="Question not scheduled for today")
-    # Prevent duplicate
-    existing = await db.answers.find_one({"user_id": user["user_id"], "question_id": body.question_id})
-    if existing:
-        raise HTTPException(status_code=400, detail="Already answered")
-    if body.selected_index < 0 or body.selected_index > 3:
-        raise HTTPException(status_code=400, detail="Invalid option")
-    correct = body.selected_index == q["correct_index"]
-    points = 1 if correct else 0
-    await db.answers.insert_one({
-        "answer_id": f"a_{uuid.uuid4().hex[:12]}",
-        "user_id": user["user_id"],
-        "question_id": body.question_id,
-        "selected_index": body.selected_index,
-        "correct": correct,
-        "points": points,
-        "answered_at": now_utc(),
-    })
-    inc = {"total_points": points, "correct_count": 1 if correct else 0, "incorrect_count": 0 if correct else 1}
-    updated = await db.users.find_one_and_update(
-        {"user_id": user["user_id"]},
-        {"$inc": inc},
-        return_document=True,
-        projection={"_id": 0},
-    )
-    return AnswerResult(
-        correct=correct,
-        correct_index=q["correct_index"],
-        points_awarded=points,
-        total_points=int(updated.get("total_points", 0)),
-    )
+    attempt = await db.question_attempts.find_one({"user_id": user["user_id"], "question_id": body.question_id}, {"_id": 0})
+    if not attempt:
+        raise HTTPException(status_code=409, detail="Inicia la pregunta antes de responder")
+    return await record_timed_answer(attempt, body.selected_index)
 
 
 @api_router.get("/me/history")

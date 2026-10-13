@@ -219,6 +219,8 @@ class TestE2EAnswerFlow:
         assert any(q["id"] == qid for q in qs)
 
         # user submits answer (correct)
+        r = api.post(f"{BASE_URL}/api/questions/{qid}/start", headers=hu)
+        assert r.status_code == 200, r.text
         r = api.post(f"{BASE_URL}/api/answers", headers=hu, json={"question_id": qid, "selected_index": 2})
         assert r.status_code == 200, r.text
         ans = r.json()
@@ -226,9 +228,10 @@ class TestE2EAnswerFlow:
         assert ans["points_awarded"] == 1
         assert ans["total_points"] >= 1
 
-        # duplicate answer -> 400
+        # A network retry is idempotent and does not award points twice.
         r = api.post(f"{BASE_URL}/api/answers", headers=hu, json={"question_id": qid, "selected_index": 2})
-        assert r.status_code == 400
+        assert r.status_code == 200
+        assert r.json()["total_points"] == ans["total_points"]
 
         # answer a non-scheduled question -> 400
         # Create another question not scheduled
@@ -241,6 +244,8 @@ class TestE2EAnswerFlow:
 
         # user2 answers incorrectly - still creates activity for active raffle
         hu2 = user_auth2["headers"]
+        r = api.post(f"{BASE_URL}/api/questions/{qid}/start", headers=hu2)
+        assert r.status_code == 200, r.text
         r = api.post(f"{BASE_URL}/api/answers", headers=hu2, json={"question_id": qid, "selected_index": 0})
         assert r.status_code == 200
         assert r.json()["correct"] is False

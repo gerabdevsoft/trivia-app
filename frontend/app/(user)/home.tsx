@@ -14,17 +14,9 @@ import { COLORS } from "@/src/theme";
 import { api } from "@/src/lib/api";
 import { useAuth } from "@/src/context/auth";
 import { UserBackground } from "@/src/components/UserBackground";
-
-type Question = {
-  id: string;
-  statement: string;
-  options: string[];
-  category: string;
-  already_answered: boolean;
-  selected_index: number | null;
-  was_correct: boolean | null;
-  correct_index: number | null;
-};
+import DailyQuiz from "@/src/components/DailyQuiz";
+import ProposalSection from "@/src/components/ProposalSection";
+import type { DailyQuestion as Question, QuizResult } from "@/src/types/quiz";
 
 type Win = {
   raffle_id: string;
@@ -40,19 +32,25 @@ export default function HomeScreen() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [quizDate, setQuizDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [serverNow, setServerNow] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [wins, setWins] = useState<Win[]>([]);
   const [celebrateWin, setCelebrateWin] = useState<Win | null>(null);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const [r, w] = await Promise.all([api.todayQuestions(), api.myWins()]);
       setQuestions(r.questions as any);
+      setQuizDate(r.date);
+      setServerNow(r.server_now);
       setWins((w.wins as any) || []);
       const unseen = (w.wins as any[])?.find((x) => !x.acknowledged);
       if (unseen) setCelebrateWin(unseen);
-    } catch (e) {
+    } catch (e: any) {
       console.log("load today err", e);
+      setLoadError(e?.message || "No se pudieron cargar las preguntas. Desliza para reintentar.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -87,42 +85,14 @@ export default function HomeScreen() {
     }
   };
 
-  const answer = async (q: Question, idx: number) => {
-    if (q.already_answered || submitting) return;
-    setSubmitting(q.id);
-    try {
-      const r = await api.submitAnswer(q.id, idx);
-      /*setQuestions((prev) =>
-        prev.map((qq) =>
-          qq.id === q.id
-            ? { ...qq, already_answered: true, selected_index: idx, was_correct: r.correct, correct_index: r.correct_index }
-            : qq,
-        ),
-      );*/
-      setQuestions((prev) =>
-        Array.isArray(prev)
-          ? prev.map((qq) =>
-              qq.id === q.id
-                ? {
-                    ...qq,
-                    already_answered: true,
-                    selected_index: idx,
-                    was_correct: r.correct,
-                    correct_index: r.correct_index,
-                  }
-                : qq,
-            )
-          : [],
-      );
-      refreshUser();
-    } catch (e: any) {
-      console.log("answer err", e?.message);
-    } finally {
-      setSubmitting(null);
-    }
-  };
+  const onAnswered = useCallback((questionId: string, result: QuizResult) => {
+    setQuestions((prev) => prev.map((q) => q.id === questionId ? {
+      ...q, already_answered: true, selected_index: result.selected_index,
+      was_correct: result.correct, correct_index: result.correct_index, timed_out: result.timed_out,
+    } : q));
+    void refreshUser();
+  }, [refreshUser]);
 
-  const answeredCount = questions?.filter((q) => q.already_answered)?.length;
   const correctToday = questions?.filter((q) => q.was_correct)?.length;
 
   if (loading) {
@@ -154,6 +124,16 @@ export default function HomeScreen() {
             {user?.name || "jugador"}!
           </Text>
         </View>
+
+        {loadError && <Text style={{ color: COLORS.error, marginBottom: 12 }}>{loadError}</Text>}
+        <DailyQuiz
+          questions={questions}
+          quizDate={quizDate}
+          serverNow={serverNow}
+          userId={user?.user_id || ""}
+          onAnswered={onAnswered}
+        />
+        <ProposalSection />
 
         {wins?.length > 0 && (
           <View>
@@ -216,41 +196,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Preguntas del día</Text>
-        {questions?.length === 0 ? (
-          <View style={styles.emptyCard} testID="empty-questions">
-            <Ionicons
-              name="hourglass-outline"
-              size={48}
-              color={COLORS.textMuted}
-            />
-            <Text style={styles.emptyTitle}>Aún no hay preguntas</Text>
-            <Text style={styles.emptyText}>
-              El administrador publicará las preguntas del día pronto. Recibirás
-              una notificación.
-            </Text>
-          </View>
-        ) : (
-          questions?.map((q, qi) => (
-            <QuestionCard
-              key={q.id}
-              q={q}
-              index={qi + 1}
-              submitting={submitting === q.id}
-              onAnswer={(idx) => answer(q, idx)}
-            />
-          ))
-        )}
-
-        {answeredCount === questions?.length && questions?.length > 0 && (
-          <View style={styles.doneCard} testID="all-done-card">
-            <Ionicons name="ribbon" size={40} color={COLORS.accent} />
-            <Text style={styles.doneTitle}>¡Completaste el reto de hoy!</Text>
-            <Text style={styles.doneText}>
-              Vuelve mañana por más preguntas.
-            </Text>
-          </View>
-        )}
       </ScrollView>
 
       <Modal
@@ -299,109 +244,6 @@ function StatCard({ label, value, icon, color, testID }: any) {
       <Ionicons name={icon} size={22} color={color} />
       <Text style={[styles.statValue, { color }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function QuestionCard({
-  q,
-  index,
-  submitting,
-  onAnswer,
-}: {
-  q: Question;
-  index: number;
-  submitting: boolean;
-  onAnswer: (idx: number) => void;
-}) {
-  return (
-    <View style={styles.card} testID={`question-card-${q.id}`}>
-      <View style={styles.cardHeader}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{q.category}</Text>
-        </View>
-        <Text style={styles.qIndex}>Pregunta {index}</Text>
-      </View>
-      <Text style={styles.statement}>{q.statement}</Text>
-      <View style={{ gap: 10, marginTop: 12 }}>
-        {q.options?.map((opt, idx) => {
-          const isSelected = q.selected_index === idx;
-          const isCorrect = q.correct_index === idx;
-          const showResult = q.already_answered;
-          let bg = COLORS.white;
-          let border = COLORS.border;
-          let icon = <ClawBullet />;
-          if (showResult) {
-            if (isCorrect) {
-              bg = COLORS.successBg;
-              border = COLORS.success;
-              icon = (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color={COLORS.success}
-                />
-              );
-            } else if (isSelected) {
-              bg = COLORS.errorBg;
-              border = COLORS.error;
-              icon = (
-                <Ionicons name="close-circle" size={24} color={COLORS.error} />
-              );
-            }
-          }
-          return (
-            <TouchableOpacity
-              key={idx}
-              activeOpacity={0.8}
-              disabled={q.already_answered || submitting}
-              onPress={() => onAnswer(idx)}
-              style={[
-                styles.option,
-                { backgroundColor: bg, borderColor: border },
-              ]}
-              testID={`option-${q.id}-${idx}`}
-            >
-              <View style={styles.optIcon}>{icon}</View>
-              <Text style={styles.optText}>{opt}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      {submitting && (
-        <View style={{ marginTop: 8 }}>
-          <ActivityIndicator color={COLORS.primary} />
-        </View>
-      )}
-      {q.already_answered && (
-        <View style={styles.resultBar}>
-          <Ionicons
-            name={q.was_correct ? "checkmark-circle" : "information-circle"}
-            size={18}
-            color={q.was_correct ? COLORS.success : COLORS.primaryLight}
-          />
-          <Text
-            style={[
-              styles.resultText,
-              {
-                color: q.was_correct
-                  ? COLORS.accentDarker
-                  : COLORS.textSecondary,
-              },
-            ]}
-          >
-            {q.was_correct ? "¡Correcto! +1 punto" : "Sin puntos esta vez"}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function ClawBullet() {
-  return (
-    <View style={styles.clawBullet}>
-      <Ionicons name="paw" size={16} color={COLORS.accent} />
     </View>
   );
 }

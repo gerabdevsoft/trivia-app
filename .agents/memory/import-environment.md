@@ -1,6 +1,6 @@
 ---
 name: Import environment quirks
-description: Non-obvious port-forwarding and certificate behavior observed during imported-project setup.
+description: Non-obvious forwarding, certificate and helper-package behavior in this imported project.
 ---
 
 Do not assume a validated replacement of the Replit port configuration updates
@@ -37,3 +37,15 @@ the user's credentials, so changing a password cannot fix this symptom.
 origin. In Replit development, allow only that current origin through Expo's
 router CORS configuration; keep the exception disabled in native and other
 environments, then verify login and authenticated requests through the preview.
+
+Helper dependency installation can incorrectly scaffold an unrelated root Python
+project and attempt to install into an immutable Nix runtime.
+
+**Why:** A PDF-processing helper installation did both, despite the imported app
+already having a working backend runtime. The helper failed; the app did not need
+a new root entry point or replacement project configuration.
+
+**How to apply:** Inspect the existing runtime and scaffold before installing
+processing-only helpers. Prefer already available rendering tools for temporary
+asset work, and check for unintended scaffold/configuration changes after an
+installation failure.

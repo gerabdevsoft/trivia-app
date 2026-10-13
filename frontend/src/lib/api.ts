@@ -88,9 +88,13 @@ export const api = {
     }),
 
   // User
-  todayQuestions: () => request<{ date: string; questions: any[] }>("/questions/today"),
-  submitAnswer: (question_id: string, selected_index: number) =>
-    request<{ correct: boolean; correct_index: number; points_awarded: number; total_points: number }>(
+  todayQuestions: () => request<{ date: string; questions: any[]; server_now: string }>("/questions/today"),
+  startQuestion: (question_id: string) =>
+    request<{ already_answered: boolean; question_id?: string; deadline_at?: string; server_now: string; answer?: import("../types/quiz").QuizResult }>(
+      `/questions/${encodeURIComponent(question_id)}/start`, { method: "POST" },
+    ),
+  submitAnswer: (question_id: string, selected_index: number | null) =>
+    request<import("../types/quiz").QuizResult>(
       "/answers",
       { method: "POST", body: JSON.stringify({ question_id, selected_index }) },
     ),
