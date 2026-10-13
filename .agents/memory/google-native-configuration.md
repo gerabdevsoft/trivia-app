@@ -23,3 +23,9 @@ Esta app ya se distribuye en producción por Google Play.
 **How to apply:** Distinguir la versión instalada desde la tienda del código del
 workspace. No asumir que editar el proyecto actualiza las instalaciones existentes,
 ni cambiar la identidad o las claves de firma de la app para resolver OAuth.
+
+La configuración de acceso de Google para esta app se gestiona con Firebase y el usuario aporta `google-services.json`.
+
+**Why:** El usuario aclaró que usa Firebase para el error de autenticación de Google.
+
+**How to apply:** Revisar primero el proveedor Google, las huellas SHA-1 y los clientes OAuth del proyecto Firebase antes de sugerir cambios en la consola de Google Cloud.

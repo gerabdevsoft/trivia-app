@@ -238,7 +238,7 @@ export default function AdminQuestions() {
               <Text style={styles.alreadyTitle}>Ya se publicaron preguntas hoy</Text>
               <Text style={styles.alreadyText}>
                 Se publicaron {todaySchedule.question_ids.length} preguntas el {todaySchedule.date}.
-                {"\n"}Puedes ver el detalle en la pestaña "Publicadas".
+                 {"\n"}Puedes ver el detalle en la pestaña &quot;Publicadas&quot;.
               </Text>
               <TouchableOpacity style={styles.goPublishedBtn} onPress={() => changeTab("published")} testID="go-to-published-button">
                 <Text style={styles.goPublishedText}>Ver publicaciones →</Text>
@@ -274,7 +274,7 @@ export default function AdminQuestions() {
 
               <Text style={styles.helperText}>
                 Selecciona {todaySchedule?.selection_count ?? settings?.daily_questions_count ?? 5} preguntas activas para el día. Al publicar se enviará una notificación push.
-                {"\n"}⚠️ Sólo se muestran preguntas nunca antes usadas. Una vez publicadas, quedarán marcadas como "Usada" y no podrán reutilizarse.
+                {"\n"}⚠️ Sólo se muestran preguntas nunca antes usadas. Una vez publicadas, quedarán marcadas como &quot;Usada&quot; y no podrán reutilizarse.
               </Text>
 
               {items?.filter(q => q.active && !q.used_in_schedule).length === 0 ? (
@@ -318,7 +318,7 @@ export default function AdminQuestions() {
           {history.length === 0 ? (
             <View style={styles.emptyPubBox}>
               <Ionicons name="newspaper-outline" size={40} color={COLORS.textMuted} />
-              <Text style={styles.emptyPubText}>Aún no hay publicaciones. Publica en "Programar hoy".</Text>
+              <Text style={styles.emptyPubText}>Aún no hay publicaciones. Publica en &quot;Programar hoy&quot;.</Text>
             </View>
           ) : (
             history.map((s) => {
