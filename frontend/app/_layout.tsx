@@ -1,9 +1,10 @@
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox, Platform } from "react-native";
+import { Alert, LogBox, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Linking from "expo-linking";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
@@ -49,6 +50,41 @@ export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS === "web") return;
 
+    const notifyPermissionStatus = async () => {
+      const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (status !== "denied" || canAskAgain) return;
+
+      const lastNudge = await AsyncStorage.getItem("pushNudgeAt");
+      const oneWeek = 7 * 24 * 60 * 60 * 1000;
+      if (lastNudge && Date.now() - Number(lastNudge) <= oneWeek) return;
+
+      Alert.alert(
+        "Notificaciones desactivadas",
+        "Actívalas en Ajustes para recibir las preguntas diarias y resultados de sorteos.",
+        [
+          {
+            text: "Más tarde",
+            style: "cancel",
+            onPress: () => AsyncStorage.setItem("pushNudgeAt", String(Date.now())),
+          },
+          {
+            text: "Abrir ajustes",
+            onPress: async () => {
+              await AsyncStorage.setItem("pushNudgeAt", String(Date.now()));
+              await Linking.openSettings();
+            },
+          },
+        ],
+      );
+    };
+
+    void notifyPermissionStatus();
+
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      const content = notification.request.content;
+      Alert.alert(content.title || "Yamile Hayes Pregunta", content.body || "Tienes una nueva notificación.");
+    });
+
     const tapSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = (response.notification.request.content.data as any) || {};
       const url = data.deeplink || data.action_url;
@@ -68,6 +104,7 @@ export default function RootLayout() {
     });
 
     return () => {
+      receivedSub.remove();
       tapSub.remove();
     };
   }, [router]);

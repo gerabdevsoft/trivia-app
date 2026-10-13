@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -62,7 +62,7 @@ export default function AdminQuestions() {
     } catch (e) { console.log(e); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const openCreate = () => {
     setEditing(null);
@@ -100,32 +100,41 @@ export default function AdminQuestions() {
       else await api.adminCreateQuestion(payload);
       showToast("Guardado");
       setModalOpen(false);
-      load();
+      await load();
     } catch (e: any) { showToast(e?.message || "Error"); }
     finally { setBusy(false); }
   };
 
   const toggleActive = async (q: Q) => {
-    try { await api.adminUpdateQuestion(q.id, { active: !q.active }); load(); }
+    try { await api.adminUpdateQuestion(q.id, { active: !q.active }); await load(); }
     catch (e: any) { showToast(e?.message); }
   };
 
   const remove = async (q: Q) => {
-    try { await api.adminDeleteQuestion(q.id); load(); showToast("Eliminada"); }
+    try { await api.adminDeleteQuestion(q.id); await load(); showToast("Eliminada"); }
     catch (e: any) { showToast(e?.message); }
   };
 
   const toggleSelect = (id: string) => {
     const next = new Set(selected);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    const selectionCount = Number(todaySchedule?.selection_count ?? settings?.daily_questions_count ?? 5) || 5;
+    if (next.has(id)) next.delete(id);
+    else if (next.size >= selectionCount) {
+      showToast(`Solo puedes seleccionar ${selectionCount} preguntas`);
+      return;
+    } else next.add(id);
     setSelected(next);
   };
 
   const publish = async () => {
-    if (selected.size === 0) { showToast("Selecciona preguntas"); return; }
+    const selectionCount = Number(todaySchedule?.selection_count ?? settings?.daily_questions_count ?? 5) || 5;
+    if (selected.size !== selectionCount) { showToast(`Selecciona exactamente ${selectionCount} preguntas`); return; }
     setBusy(true);
     try {
       const r = await api.adminSetSchedule(Array.from(selected));
+      await load();
+      setExpandedDate(r.date);
+      setTab("published");
       showToast(`Publicadas ${r.count} preguntas del día`);
     } catch (e: any) { showToast(e?.message); }
     finally { setBusy(false); }
@@ -134,8 +143,21 @@ export default function AdminQuestions() {
   const saveSettings = async () => {
     const n = parseInt(dailyCount, 10);
     if (!n || n < 1) return;
-    try { await api.adminUpdateSettings({ daily_questions_count: n }); showToast("Actualizado"); }
+    setBusy(true);
+    try {
+      const draft = await api.adminLockScheduleCount(n);
+      setTodaySchedule(draft);
+      setDailyCount(String(draft.selection_count));
+      setSelected(new Set());
+      showToast(`Cantidad fijada en ${draft.selection_count}. Ahora elige las preguntas.`);
+    }
     catch (e: any) { showToast(e?.message); }
+    finally { setBusy(false); }
+  };
+
+  const changeTab = (nextTab: "bank" | "schedule" | "published") => {
+    setTab(nextTab);
+    void load();
   };
 
   return (
@@ -149,13 +171,13 @@ export default function AdminQuestions() {
       </View>
 
       <View style={styles.tabs}>
-        <TouchableOpacity onPress={() => setTab("bank")} style={[styles.tabBtn, tab === "bank" && styles.tabActive]} testID="tab-bank">
+        <TouchableOpacity onPress={() => changeTab("bank")} style={[styles.tabBtn, tab === "bank" && styles.tabActive]} testID="tab-bank">
           <Text style={[styles.tabText, tab === "bank" && styles.tabTextActive]}>Banco</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab("schedule")} style={[styles.tabBtn, tab === "schedule" && styles.tabActive]} testID="tab-schedule">
+        <TouchableOpacity onPress={() => changeTab("schedule")} style={[styles.tabBtn, tab === "schedule" && styles.tabActive]} testID="tab-schedule">
           <Text style={[styles.tabText, tab === "schedule" && styles.tabTextActive]}>Programar hoy</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab("published")} style={[styles.tabBtn, tab === "published" && styles.tabActive]} testID="tab-published">
+        <TouchableOpacity onPress={() => changeTab("published")} style={[styles.tabBtn, tab === "published" && styles.tabActive]} testID="tab-published">
           <Text style={[styles.tabText, tab === "published" && styles.tabTextActive]}>Publicadas</Text>
         </TouchableOpacity>
       </View>
@@ -218,30 +240,40 @@ export default function AdminQuestions() {
                 Se publicaron {todaySchedule.question_ids.length} preguntas el {todaySchedule.date}.
                 {"\n"}Puedes ver el detalle en la pestaña "Publicadas".
               </Text>
-              <TouchableOpacity style={styles.goPublishedBtn} onPress={() => setTab("published")}>
+              <TouchableOpacity style={styles.goPublishedBtn} onPress={() => changeTab("published")} testID="go-to-published-button">
                 <Text style={styles.goPublishedText}>Ver publicaciones →</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <>
-              <View style={styles.settingsCard}>
-                <Text style={styles.settingsLabel}>Cantidad de preguntas diarias (X)</Text>
-                <View style={styles.settingsRow}>
-                  <TextInput
-                    value={dailyCount}
-                    onChangeText={setDailyCount}
-                    keyboardType="number-pad"
-                    style={styles.settingsInput}
-                    testID="daily-count-input"
-                  />
-                  <TouchableOpacity onPress={saveSettings} style={styles.saveBtn} testID="save-settings">
-                    <Text style={styles.saveBtnText}>Guardar</Text>
-                  </TouchableOpacity>
+              {todaySchedule?.selection_count ? (
+                <View style={styles.countLockedCard} testID="daily-count-locked">
+                  <Ionicons name="lock-closed" size={20} color={COLORS.primaryDark} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.countLockedTitle}>Cantidad fijada: {todaySchedule.selection_count}</Text>
+                    <Text style={styles.countLockedText}>Selecciona exactamente esta cantidad para publicar hoy.</Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsLabel}>Cantidad de preguntas diarias (X)</Text>
+                  <View style={styles.settingsRow}>
+                    <TextInput
+                      value={dailyCount}
+                      onChangeText={setDailyCount}
+                      keyboardType="number-pad"
+                      style={styles.settingsInput}
+                      testID="daily-count-input"
+                    />
+                    <TouchableOpacity onPress={saveSettings} disabled={busy} style={[styles.saveBtn, busy && styles.disabled]} testID="save-settings">
+                      {busy ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.saveBtnText}>Guardar</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
 
               <Text style={styles.helperText}>
-                Selecciona {settings?.daily_questions_count ?? 5} preguntas activas para el día. Al publicar se enviará una notificación push.
+                Selecciona {todaySchedule?.selection_count ?? settings?.daily_questions_count ?? 5} preguntas activas para el día. Al publicar se enviará una notificación push.
                 {"\n"}⚠️ Sólo se muestran preguntas nunca antes usadas. Una vez publicadas, quedarán marcadas como "Usada" y no podrán reutilizarse.
               </Text>
 
@@ -270,7 +302,7 @@ export default function AdminQuestions() {
                 })
               )}
 
-              <TouchableOpacity style={styles.publishBtn} onPress={publish} disabled={busy} testID="publish-button">
+              <TouchableOpacity style={[styles.publishBtn, busy && styles.disabled]} onPress={publish} disabled={busy} testID="publish-button">
                 {busy ? <ActivityIndicator color={COLORS.white} /> : (
                   <>
                     <Ionicons name="send" size={18} color={COLORS.white} />
@@ -411,6 +443,9 @@ const styles = StyleSheet.create({
   settingsInput: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 10, backgroundColor: COLORS.surface, color: COLORS.textPrimary },
   saveBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 16, borderRadius: 10, justifyContent: "center" },
   saveBtnText: { color: COLORS.white, fontWeight: "700" },
+  countLockedCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: COLORS.surfaceAlt, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.primaryLight, marginBottom: 16 },
+  countLockedTitle: { color: COLORS.primaryDark, fontSize: 15, fontWeight: "800" },
+  countLockedText: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   helperText: { color: COLORS.textSecondary, marginBottom: 12, fontSize: 13 },
   selCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: COLORS.white, padding: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border },
   selCardActive: { borderColor: COLORS.accent, backgroundColor: COLORS.successBg },
@@ -418,6 +453,7 @@ const styles = StyleSheet.create({
   selCat: { fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", fontWeight: "700", marginTop: 2 },
   publishBtn: { marginTop: 16, backgroundColor: COLORS.accent, padding: 16, borderRadius: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
   publishText: { color: COLORS.white, fontWeight: "800", fontSize: 15 },
+  disabled: { opacity: 0.6 },
   alreadyBox: { backgroundColor: COLORS.successBg, borderWidth: 2, borderColor: COLORS.accent, borderRadius: 16, padding: 20, alignItems: "center", marginBottom: 16 },
   alreadyTitle: { fontSize: 18, fontWeight: "800", color: COLORS.primaryDark, marginTop: 10 },
   alreadyText: { fontSize: 13, color: COLORS.textSecondary, textAlign: "center", marginTop: 6, lineHeight: 20 },
@@ -449,4 +485,3 @@ const styles = StyleSheet.create({
   toast: { position: "absolute", left: 20, right: 20, bottom: 20, backgroundColor: COLORS.primaryDark, padding: 14, borderRadius: 12 },
   toastText: { color: COLORS.white, textAlign: "center", fontWeight: "600" },
 });
-

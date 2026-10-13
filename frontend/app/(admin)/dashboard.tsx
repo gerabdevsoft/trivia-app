@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -38,13 +39,14 @@ export default function AdminDashboard() {
     } catch (e) { console.log(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const sendNotif = async () => {
     if (!notifTitle.trim() || !notifMsg.trim()) return;
     setNotifBusy(true);
     try {
       const r = await api.adminSendNotification(notifTitle, notifMsg);
+      await load();
       setToast(`Notificación enviada a ${r.sent_to || 0} usuarios`);
       setNotifTitle(""); setNotifMsg(""); setNotifOpen(false);
       setTimeout(() => setToast(null), 3000);

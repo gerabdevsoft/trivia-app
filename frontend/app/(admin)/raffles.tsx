@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -32,7 +33,7 @@ export default function AdminRaffles() {
       setHistory(h.raffles as any);
     } catch (e) { console.log(e); } finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const openWeekly = (p: any) => { setN("10"); setNValueModal({ prize: p, open: true }); };
   const executeWeekly = async () => {
@@ -44,7 +45,7 @@ export default function AdminRaffles() {
       const r = await api.adminExecuteWeekly(nValueModal.prize.prize_id, nn);
       showToast(`Ganador: ${r.winner.name}`);
       setNValueModal({ prize: null, open: false });
-      load();
+      await load();
     } catch (e: any) { showToast(e?.message || "Error"); }
     finally { setBusy(false); }
   };
@@ -53,7 +54,7 @@ export default function AdminRaffles() {
     try {
       const r = await api.adminExecuteActive(p.prize_id);
       showToast(`Ganador: ${r.winner.name}`);
-      load();
+      await load();
     } catch (e: any) { showToast(e?.message || "Error"); }
     finally { setBusy(false); }
   };

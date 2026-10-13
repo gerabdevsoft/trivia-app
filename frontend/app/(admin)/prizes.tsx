@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -9,7 +10,6 @@ import {
   ActivityIndicator,
   Modal,
   Image,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -40,7 +40,7 @@ export default function AdminPrizes() {
     catch (e) { console.log(e); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const openCreate = () => {
     setEditing(null);
@@ -90,13 +90,13 @@ export default function AdminPrizes() {
       else await api.adminCreatePrize(payload);
       showToast("Guardado");
       setModalOpen(false);
-      load();
+      await load();
     } catch (e: any) { showToast(e?.message || "Error"); }
     finally { setBusy(false); }
   };
 
   const remove = async (p: any) => {
-    try { await api.adminDeletePrize(p.prize_id); load(); showToast("Eliminado"); }
+    try { await api.adminDeletePrize(p.prize_id); await load(); showToast("Eliminado"); }
     catch (e: any) { showToast(e?.message); }
   };
 

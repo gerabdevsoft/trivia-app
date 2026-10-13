@@ -118,6 +118,8 @@ export const api = {
 
   adminGetSchedule: () => request<any>("/admin/schedule/today"),
   adminScheduleHistory: () => request<{ schedules: any[] }>("/admin/schedule/history"),
+  adminLockScheduleCount: (selection_count: number) =>
+    request<any>("/admin/schedule/draft", { method: "POST", body: JSON.stringify({ selection_count }) }),
   adminSetSchedule: (question_ids: string[]) =>
     request<any>("/admin/schedule", { method: "POST", body: JSON.stringify({ question_ids }) }),
 
