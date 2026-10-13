@@ -24,3 +24,16 @@ certificate, whereas the system CA bundle validated it successfully.
 **How to apply:** Build an SSL context from the system CA bundle for development
 checks. Do not disable TLS verification or change the application's TLS policy
 to work around a test-environment trust issue.
+
+The Replit web preview's browser origin may include `:5000`, even when the
+forwarded request's `Host` header does not. Expo's development CORS checks can
+reject same-preview API requests and the browser reports only “Failed to fetch.”
+
+**Why:** Login's JSON and bearer-token requests trigger browser preflights. If
+Expo rejects the preview origin, those requests fail before FastAPI can validate
+the user's credentials, so changing a password cannot fix this symptom.
+
+**How to apply:** Reproduce the browser's preflight with its exact preview
+origin. In Replit development, allow only that current origin through Expo's
+router CORS configuration; keep the exception disabled in native and other
+environments, then verify login and authenticated requests through the preview.

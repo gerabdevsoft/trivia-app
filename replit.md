@@ -18,6 +18,8 @@ port-80 mapping to 8081, so the runner also relays 8081 to the same Expo server.
 Port 5000 is the workflow preview target; both web addresses serve the same app.
 Do not expose MongoDB or FastAPI directly. The script stops all services when
 the workflow stops.
+Replit development dynamically sets the Expo Router CORS origin for the
+port-5000 preview; that allowance is not enabled in native builds or elsewhere.
 
 ## Dependencies
 
