@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "@/src/theme";
 import { storage } from "@/src/utils/storage";
+import { apiErrorMessage } from "./auth-validation";
 
 const SESSION_KEY = "session_token";
 
@@ -31,7 +32,7 @@ async function request<T = any>(
   const contentType = res.headers.get("content-type") || "";
   const body = contentType.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
-    const msg = typeof body === "string" ? body : body?.detail || "Request failed";
+    const msg = apiErrorMessage(body);
     const err = new Error(msg) as any;
     err.status = res.status;
     err.body = body;
@@ -47,10 +48,10 @@ async function request<T = any>(
 export const api = {
   status: () => request<{ idle: boolean; server_time: string; message: string; opens_at: string; closes_at: string; timezone: string }>("/status"),
   // Auth
-  googleSignIn: (id_token: string) =>
+  googleSignIn: (id_token: string, profile?: { faculty: string; ci: string | null; cu: string | null }) =>
     request<{ session_token: string; user: any }>("/auth/google", {
       method: "POST",
-      body: JSON.stringify({ id_token }),
+      body: JSON.stringify({ id_token, ...(profile ? { profile } : {}) }),
     }),
   register: (name: string, email: string, password: string, faculty: string, ci: string | null, cu: string | null) =>
     request<{ session_token: string; user: any }>("/auth/register", {

@@ -160,14 +160,7 @@ async def idle_gate(request: Request, call_next):
 # =========================
 # Models
 # =========================
-class GoogleAuthBody(BaseModel):
-    id_token: str
-
-
-class RegisterBody(BaseModel):
-    name: str = Field(..., min_length=2, max_length=80)
-    email: EmailStr
-    password: str = Field(..., min_length=6, max_length=128)
+class RegistrationProfile(BaseModel):
     faculty: str = Field(..., min_length=2, max_length=120)
     ci: Optional[str] = Field(default=None, max_length=30)
     cu: Optional[str] = Field(default=None, max_length=30)
@@ -193,6 +186,22 @@ class RegisterBody(BaseModel):
         if not self.ci and not self.cu:
             raise ValueError("Debes ingresar al menos un documento (CI o CU) para recoger premios")
         return self
+
+
+class RegisterBody(RegistrationProfile):
+    name: str = Field(..., min_length=2, max_length=80)
+    email: EmailStr
+    password: str = Field(..., min_length=6, max_length=128)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def clean_name(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class GoogleAuthBody(BaseModel):
+    id_token: str
+    profile: Optional[RegistrationProfile] = None
 
 
 class UpdateProfileBody(BaseModel):
@@ -735,6 +744,8 @@ async def auth_google(body: GoogleAuthBody):
             "is_admin": existing.get("is_admin", False) or (email == ADMIN_EMAIL),
             "provider": existing.get("provider") or "google",
         }
+        if body.profile:
+            updates.update(body.profile.model_dump())
         await db.users.update_one({"user_id": user_id}, {"$set": updates})
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -751,6 +762,7 @@ async def auth_google(body: GoogleAuthBody):
             "incorrect_count": 0,
             "created_at": now_utc(),
             "provider": "google",
+            **(body.profile.model_dump() if body.profile else {}),
         })
 
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})

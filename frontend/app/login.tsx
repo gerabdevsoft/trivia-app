@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, ASSETS } from "@/src/theme";
 import { useAuth } from "@/src/context/auth";
 import { api } from "@/src/lib/api";
+import { registrationError, googleErrorMessage } from "@/src/lib/auth-validation";
 
 type Mode = "login" | "register";
 
@@ -46,6 +47,7 @@ export default function LoginScreen() {
   const [cu, setCu] = useState("");
   const [facultyOpen, setFacultyOpen] = useState(false);
   const [facultiesList, setFacultiesList] = useState<string[]>([]);
+  const [googleReady, setGoogleReady] = useState(false);
 
   useEffect(() => {
     api.faculties().then((r) => setFacultiesList(r.faculties)).catch(() => {});
@@ -60,14 +62,15 @@ export default function LoginScreen() {
 
   useEffect(() => {
     // Configure Google Sign-In only in native builds (not Expo Go, not web)
-    if (!GOOGLE_NATIVE_AVAILABLE) return;
+    if (!GOOGLE_NATIVE_AVAILABLE || !WEB_CLIENT_ID.trim()) return;
     (async () => {
       try {
         const mod = await import("@react-native-google-signin/google-signin");
-        mod.GoogleSignin.configure({
+        await mod.GoogleSignin.configure({
           webClientId: WEB_CLIENT_ID,
           offlineAccess: false,
         });
+        setGoogleReady(true);
       } catch (e) {
         console.log("Google Signin configure error:", e);
       }
@@ -75,8 +78,14 @@ export default function LoginScreen() {
   }, []);
 
   const handleGoogleLogin = async () => {
+    if (busy) return;
     setErrorMsg(null);
     setInfoMsg(null);
+    if (mode === "register") {
+      // Google supplies the verified name/email; faculty and documents come from this form.
+      const validation = registrationError({ name, email, password, faculty, ci, cu }, facultiesList, true);
+      if (validation) { setErrorMsg(validation); return; }
+    }
     if (!GOOGLE_NATIVE_AVAILABLE) {
       setInfoMsg(
         IS_WEB
@@ -85,12 +94,17 @@ export default function LoginScreen() {
       );
       return;
     }
+    if (!googleReady) {
+      setErrorMsg("Google no está disponible en esta versión de la app. Usa correo y contraseña.");
+      return;
+    }
     setBusy(true);
     try {
       const mod = await import("@react-native-google-signin/google-signin");
       const { GoogleSignin } = mod;
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const info: any = await GoogleSignin.signIn();
+        if (info?.type === "cancelled") return;
       // v14+ returns { type: 'success', data: { idToken, user } }, older returns { idToken, user }
       const idToken: string | undefined = info?.data?.idToken || info?.idToken;
       if (!idToken) {
@@ -98,38 +112,28 @@ export default function LoginScreen() {
         setBusy(false);
         return;
       }
-      const res = await api.googleSignIn(idToken);
+      const res = await api.googleSignIn(idToken, mode === "register" ? {
+        faculty: faculty.trim(), ci: ci.trim() || null, cu: cu.trim() || null,
+      } : undefined);
       const u = await applySessionResponse(res);
       if (u?.is_admin) router.replace("/(admin)/dashboard");
       else router.replace("/(user)/home");
     } catch (e: any) {
-      if (e?.code === "SIGN_IN_CANCELLED" || e?.message?.includes("cancel")) {
-        // silent
-      } else {
-        setErrorMsg(e?.message || "Error al iniciar con Google");
-      }
+      setErrorMsg(googleErrorMessage(e));
     } finally {
       setBusy(false);
     }
   };
 
   const handleSubmit = async () => {
+    if (busy) return;
     setErrorMsg(null);
     setInfoMsg(null);
-    if (!email.trim() || !password) {
+    if (mode === "register") {
+      const validation = registrationError({ name, email, password, faculty, ci, cu }, facultiesList);
+      if (validation) { setErrorMsg(validation); return; }
+    } else if (!email.trim() || !password) {
       setErrorMsg("Ingresa email y contraseña");
-      return;
-    }
-    if (mode === "register" && name.trim().length < 2) {
-      setErrorMsg("Ingresa tu nombre");
-      return;
-    }
-    if (mode === "register" && !faculty) {
-      setErrorMsg("Selecciona tu facultad");
-      return;
-    }
-    if (mode === "register" && !ci.trim() && !cu.trim()) {
-      setErrorMsg("Debes ingresar al menos un documento (CI o CU) para recoger premios");
       return;
     }
     setBusy(true);

@@ -1,2 +1,3 @@
 - [Import environment quirks](import-environment.md) — verify live port forwarding after configuration changes; Python HTTPS checks need the system CA bundle.
 - [Quiz experience constraints](quiz-experience.md) — el plazo no debe reiniciarse al reabrir; el usuario prioriza fluidez y ausencia de relojes activos en segundo plano.
+- [Native Google configuration](google-native-configuration.md) — Google error 10 is an installed-build/OAuth mismatch, not a missing-faculty validation error.
