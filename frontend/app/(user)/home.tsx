@@ -93,8 +93,6 @@ export default function HomeScreen() {
     void refreshUser();
   }, [refreshUser]);
 
-  const correctToday = questions?.filter((q) => q.was_correct)?.length;
-
   if (loading) {
     return (
       <UserBackground>
@@ -123,6 +121,30 @@ export default function HomeScreen() {
           <Text style={styles.userName} testID="home-user-name">
             {user?.name || "jugador"}!
           </Text>
+        </View>
+
+        <View style={styles.statsRow}>
+          <StatCard
+            label="Puntos"
+            value={user?.total_points ?? 0}
+            icon="star"
+            color={COLORS.accent}
+            testID="stat-points"
+          />
+          <StatCard
+            label="Correctas"
+            value={user?.correct_count ?? 0}
+            icon="checkmark-circle"
+            color={COLORS.primary}
+            testID="stat-correct"
+          />
+          <StatCard
+            label="Preguntas hoy"
+            value={questions?.length ?? 0}
+            icon="today"
+            color={COLORS.primaryLight}
+            testID="stat-today"
+          />
         </View>
 
         {loadError && <Text style={{ color: COLORS.error, marginBottom: 12 }}>{loadError}</Text>}
@@ -171,30 +193,6 @@ export default function HomeScreen() {
             ))}
           </View>
         )}
-
-        <View style={styles.statsRow}>
-          <StatCard
-            label="Puntos"
-            value={user?.total_points ?? 0}
-            icon="star"
-            color={COLORS.accent}
-            testID="stat-points"
-          />
-          <StatCard
-            label="Correctas"
-            value={user?.correct_count ?? 0}
-            icon="checkmark-circle"
-            color={COLORS.primary}
-            testID="stat-correct"
-          />
-          <StatCard
-            label="Hoy"
-            value={`${correctToday}/${questions?.length}`}
-            icon="today"
-            color={COLORS.primaryLight}
-            testID="stat-today"
-          />
-        </View>
 
       </ScrollView>
 

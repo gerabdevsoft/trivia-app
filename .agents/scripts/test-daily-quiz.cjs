@@ -124,6 +124,11 @@ function mock(request) {
     await waitFor(`!!document.querySelector('${testSelector("start-daily-quiz")}')`);
     await waitFor(`document.querySelector('${testSelector("start-daily-quiz")}').getAttribute('aria-disabled') !== 'true'`);
     assert.equal(await evaluate("document.body.innerText.toLowerCase().replace(/\\s+/g, ' ').includes('compromisos para una universidad mejor')"), true);
+    assert.equal(await evaluate(`document.querySelector('${testSelector("stat-points")}').innerText.toLowerCase().includes('puntos')`), true);
+    assert.equal(await evaluate(`document.querySelector('${testSelector("stat-correct")}').innerText.toLowerCase().includes('correctas')`), true);
+    assert.equal(await evaluate(`document.querySelector('${testSelector("stat-today")}').innerText.toLowerCase().includes('preguntas hoy') && document.querySelector('${testSelector("stat-today")}').innerText.includes('2')`), true);
+    assert.equal(await evaluate(`document.querySelector('${testSelector("stat-today")}').getBoundingClientRect().bottom < document.querySelector('${testSelector("start-daily-quiz")}').getBoundingClientRect().top`), true);
+    assert.equal(await evaluate(`document.querySelector('${testSelector("start-daily-quiz")}').getBoundingClientRect().bottom < document.querySelector('[aria-label="Ver las páginas originales de la propuesta"]').getBoundingClientRect().top`), true);
     await screenshot("home-mobile.png");
     await click("start-daily-quiz");
     await waitFor(`!!document.querySelector('${testSelector("option-ui-q1-1")}')`);
