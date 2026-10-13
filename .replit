@@ -39,4 +39,10 @@ externalPort = 5000
 localPort = 8081
 externalPort = 80
 
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = "707365491160-036jv5lcrpq60lgd80ka7m72dt2ff3s6.apps.googleusercontent.com"
+GOOGLE_WEB_CLIENT_ID = "707365491160-036jv5lcrpq60lgd80ka7m72dt2ff3s6.apps.googleusercontent.com"
+
 

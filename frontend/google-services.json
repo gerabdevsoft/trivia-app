@@ -12,7 +12,20 @@
           "package_name": "soft.dev.gerab.usfx.trivia"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "707365491160-9d2hv593062bi94m5esdpgeucbfjmd62.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "soft.dev.gerab.usfx.trivia",
+            "certificate_hash": "72e29bc313f0b902598e33e8ac5a52540dc0e09d"
+          }
+        },
+        {
+          "client_id": "707365491160-036jv5lcrpq60lgd80ka7m72dt2ff3s6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCz6B45crySm9uML-2xkrtMJB7VK0sr-CM"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "707365491160-036jv5lcrpq60lgd80ka7m72dt2ff3s6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
