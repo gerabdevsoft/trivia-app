@@ -349,6 +349,10 @@ class ScheduleDaily(BaseModel):
     date: Optional[str] = None  # ISO date. Default: today
 
 
+class ScheduleDraft(BaseModel):
+    selection_count: int = Field(..., ge=1, le=100)
+
+
 class RegisterPushBody(BaseModel):
     platform: str  # "android" | "ios"
     device_token: str
@@ -582,9 +586,13 @@ async def on_startup():
     await db.answers.create_index("answered_at")
     await db.daily_schedules.create_index("date", unique=True)
     await db.prizes.create_index("prize_type")
-    await db.push_tokens.create_index("user_id")
     await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
     await db.password_resets.create_index("token_hash", unique=True)
+
+    # Device tokens are owned by the push relay. Remove data retained by older app versions.
+    cleared_tokens = await db.push_tokens.delete_many({})
+    if cleared_tokens.deleted_count:
+        logger.info("Removed %s legacy locally stored push token(s)", cleared_tokens.deleted_count)
 
     # Seed admin (with password for email/password login). Google login on admin@usfx.bo also grants admin.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
@@ -858,17 +866,7 @@ async def logout(user=Depends(get_current_user), authorization: Optional[str] = 
 # =========================
 @api_router.post("/register-push", status_code=201)
 async def register_push(body: RegisterPushBody, user=Depends(get_current_user)):
-    await db.push_tokens.update_one(
-        {"user_id": user["user_id"], "device_token": body.device_token},
-        {"$set": {
-            "user_id": user["user_id"],
-            "platform": body.platform,
-            "device_token": body.device_token,
-            "updated_at": now_utc(),
-        }},
-        upsert=True,
-    )
-    # Relay to Emergent Push
+    """Registers the native token with the push relay without persisting it in MongoDB."""
     try:
         resp = await push_client.post(
             "/api/v1/push/users/register",
@@ -1175,7 +1173,7 @@ async def admin_get_schedule(_admin=Depends(require_admin)):
 
 @api_router.get("/admin/schedule/history")
 async def admin_schedule_history(_admin=Depends(require_admin)):
-    schedules = await db.daily_schedules.find({}, {"_id": 0}).to_list(500)
+    schedules = await db.daily_schedules.find({"published_at": {"$exists": True}}, {"_id": 0}).to_list(500)
     all_qids: set = set()
     for s in schedules:
         for qid in s.get("question_ids", []):
@@ -1215,9 +1213,45 @@ async def admin_schedule_history(_admin=Depends(require_admin)):
     return {"schedules": out}
 
 
+@api_router.post("/admin/schedule/draft")
+async def admin_lock_schedule_count(body: ScheduleDraft, _admin=Depends(require_admin)):
+    """Locks today's question count before the admin selects the questions to publish."""
+    date_str = date_only(now_utc())
+    existing = await db.daily_schedules.find_one({"date": date_str}, {"_id": 0})
+    if existing and existing.get("published_at"):
+        raise HTTPException(400, "Las preguntas de hoy ya fueron publicadas")
+    if existing and existing.get("selection_count"):
+        raise HTTPException(400, "La cantidad de preguntas para hoy ya está bloqueada")
+
+    await db.daily_schedules.update_one(
+        {"date": date_str},
+        {
+            "$set": {
+                "date": date_str,
+                "selection_count": body.selection_count,
+                "selection_locked_at": now_utc(),
+            },
+            "$setOnInsert": {"question_ids": []},
+        },
+        upsert=True,
+    )
+    await db.settings.update_one(
+        {"key": "main"},
+        {"$set": {"daily_questions_count": body.selection_count}},
+        upsert=True,
+    )
+    return {"date": date_str, "question_ids": [], "selection_count": body.selection_count}
+
+
 @api_router.post("/admin/schedule")
 async def admin_set_schedule(body: ScheduleDaily, _admin=Depends(require_admin)):
     date_str = body.date or date_only(now_utc())
+    draft = await db.daily_schedules.find_one({"date": date_str}, {"_id": 0})
+    if draft and draft.get("published_at"):
+        raise HTTPException(400, "Las preguntas de este día ya fueron publicadas")
+    expected_count = int((draft or {}).get("selection_count") or len(body.question_ids))
+    if len(body.question_ids) != expected_count:
+        raise HTTPException(400, f"Debes seleccionar exactamente {expected_count} preguntas")
     # Validate: must be active AND not previously used in any schedule
     valid = await db.questions.find(
         {"question_id": {"$in": body.question_ids}, "active": True},
@@ -1240,7 +1274,7 @@ async def admin_set_schedule(body: ScheduleDaily, _admin=Depends(require_admin))
     )
     await db.daily_schedules.update_one(
         {"date": date_str},
-        {"$set": {"date": date_str, "question_ids": ordered, "published_at": now_utc()}},
+        {"$set": {"date": date_str, "question_ids": ordered, "selection_count": expected_count, "published_at": now_utc()}},
         upsert=True,
     )
     # Trigger push to all active users
@@ -1600,3 +1634,4 @@ async def update_profile(body: UpdateProfileBody, user=Depends(get_current_user)
 
 
 app.include_router(api_router)
+

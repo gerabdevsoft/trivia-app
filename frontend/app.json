@@ -16,6 +16,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#002954"
@@ -23,7 +24,8 @@
       "edgeToEdgeEnabled": true,
       "package": "soft.dev.gerab.usfx.trivia", 
        "versionCode": 4,     
-      "permissions": [        
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
