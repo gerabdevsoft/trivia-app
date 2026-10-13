@@ -11,6 +11,7 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/auth";
 import { IdleGate } from "@/src/components/IdleGate";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { api } from "@/src/lib/api";
 
 LogBox.ignoreAllLogs(true);
 
@@ -82,6 +83,12 @@ export default function RootLayout() {
 
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       const content = notification.request.content;
+      const notificationId = (content.data as any)?.notification_id;
+      if (typeof notificationId === "string") {
+        void api.recordPushReceipt(notificationId).catch((error) => {
+          console.warn("No se pudo confirmar la recepción de la notificación", error);
+        });
+      }
       Alert.alert(content.title || "Yamile Hayes Pregunta", content.body || "Tienes una nueva notificación.");
     });
 

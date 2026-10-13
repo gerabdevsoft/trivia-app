@@ -29,31 +29,51 @@ export default function AdminDashboard() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMsg, setNotifMsg] = useState("");
+  const [faculties, setFaculties] = useState<string[]>([]);
+  const [notifFaculty, setNotifFaculty] = useState<string | null>(null);
   const [notifBusy, setNotifBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [lastNotificationId, setLastNotificationId] = useState<string | null>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<any>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const r = await api.adminStats();
+      const [r, facultyData] = await Promise.all([api.adminStats(), api.faculties()]);
       setStats(r);
+      setFaculties(facultyData.faculties);
     } catch (e) { console.log(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const sendNotif = async () => {
-    if (!notifTitle.trim() || !notifMsg.trim()) return;
+    if (!notifTitle.trim() || !notifMsg.trim() || notifFaculty === null) return;
     setNotifBusy(true);
     try {
-      const r = await api.adminSendNotification(notifTitle, notifMsg);
+      const r = await api.adminSendNotification(notifTitle, notifMsg, "all", notifFaculty || undefined);
+      setLastNotificationId(r.notification_id);
+      setDeliveryStatus(r);
       await load();
-      setToast(`Notificación enviada a ${r.sent_to || 0} usuarios`);
-      setNotifTitle(""); setNotifMsg(""); setNotifOpen(false);
+      setToast(`Aceptada por el servicio para ${r.accepted_by_provider ?? 0} usuarios`);
+      setNotifTitle(""); setNotifMsg(""); setNotifFaculty(null); setNotifOpen(false);
       setTimeout(() => setToast(null), 3000);
     } catch (e: any) {
       setToast(e?.message || "Error");
       setTimeout(() => setToast(null), 3000);
     } finally { setNotifBusy(false); }
+  };
+
+  const refreshDeliveryStatus = async () => {
+    if (!lastNotificationId) return;
+    setStatusBusy(true);
+    try {
+      setDeliveryStatus(await api.adminNotificationStatus(lastNotificationId));
+    } catch (e: any) {
+      setToast(e?.message || "No se pudo consultar la recepción");
+    } finally {
+      setStatusBusy(false);
+    }
   };
 
   const doLogout = async () => { await logout(); router.replace("/login"); };
@@ -92,6 +112,19 @@ export default function AdminDashboard() {
               <Ionicons name="notifications" size={20} color={COLORS.white} />
               <Text style={styles.notifBtnText}>Enviar notificación push</Text>
             </TouchableOpacity>
+            {deliveryStatus && (
+              <View style={styles.receiptCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.receiptTitle}>Estado de la última notificación</Text>
+                  <Text style={styles.receiptText}>
+                    Servicio aceptó {deliveryStatus.accepted_by_provider ?? 0} de {deliveryStatus.targeted_users ?? 0}; recibidas: {deliveryStatus.received_count ?? 0}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={refreshDeliveryStatus} disabled={statusBusy} style={styles.receiptRefresh} testID="refresh-notification-status">
+                  {statusBusy ? <ActivityIndicator color={COLORS.primary} /> : <Ionicons name="refresh" size={20} color={COLORS.primary} />}
+                </TouchableOpacity>
+              </View>
+            )}
 
             <Text style={styles.section}>Top 10 Semanal</Text>
             {(stats?.top10 ?? []).length === 0 ? (
@@ -132,6 +165,32 @@ export default function AdminDashboard() {
         <KeyboardAvoidingView style={styles.modalWrap} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Enviar notificación</Text>
+            <Text style={styles.targetLabel}>Destinatarios</Text>
+            <ScrollView style={styles.facultyChoicesScroll} nestedScrollEnabled>
+              <View style={styles.facultyChoices}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: notifFaculty === "" }}
+                  style={[styles.facultyChoice, notifFaculty === "" && styles.facultyChoiceSelected]}
+                  onPress={() => setNotifFaculty("")}
+                >
+                  <Text style={[styles.facultyChoiceText, notifFaculty === "" && styles.facultyChoiceTextSelected]}>Todas las facultades</Text>
+                </TouchableOpacity>
+                {faculties.map((faculty) => (
+                  <TouchableOpacity
+                    key={faculty}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: notifFaculty === faculty }}
+                    style={[styles.facultyChoice, notifFaculty === faculty && styles.facultyChoiceSelected]}
+                    onPress={() => setNotifFaculty(faculty)}
+                    testID={`notif-faculty-${faculty}`}
+                  >
+                    <Text style={[styles.facultyChoiceText, notifFaculty === faculty && styles.facultyChoiceTextSelected]}>{faculty}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+            {notifFaculty === null && <Text style={styles.targetHint}>Selecciona una facultad o todas antes de enviar.</Text>}
             <TextInput
               placeholder="Título"
               value={notifTitle}
@@ -157,7 +216,7 @@ export default function AdminDashboard() {
               <TouchableOpacity
                 style={[styles.btnPrimary, { flex: 1 }]}
                 onPress={sendNotif}
-                disabled={notifBusy}
+                disabled={notifBusy || notifFaculty === null || !notifTitle.trim() || !notifMsg.trim()}
                 testID="send-notif-button"
               >
                 {notifBusy ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.btnPrimaryText}>Enviar</Text>}
@@ -224,6 +283,14 @@ const styles = StyleSheet.create({
   emptyText: { color: COLORS.textMuted },
   modalWrap: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: "flex-end" },
   modal: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 },
+  targetLabel: { color: COLORS.textPrimary, fontSize: 14, fontWeight: "700", marginBottom: 8 },
+  facultyChoicesScroll: { maxHeight: 150, marginBottom: 8 },
+  facultyChoices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  facultyChoice: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, paddingHorizontal: 11, paddingVertical: 7, maxWidth: "100%" },
+  facultyChoiceSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  facultyChoiceText: { color: COLORS.textPrimary, fontSize: 12 },
+  facultyChoiceTextSelected: { color: COLORS.white, fontWeight: "700" },
+  targetHint: { color: COLORS.textMuted, fontSize: 12, marginBottom: 8 },
   modalTitle: { fontSize: 20, fontWeight: "900", color: COLORS.primaryDark, marginBottom: 12 },
   input: {
     borderWidth: 1,
@@ -240,4 +307,8 @@ const styles = StyleSheet.create({
   btnGhostText: { color: COLORS.textPrimary, fontWeight: "700" },
   toast: { position: "absolute", left: 20, right: 20, bottom: 20, backgroundColor: COLORS.primaryDark, padding: 14, borderRadius: 12 },
   toastText: { color: COLORS.white, textAlign: "center", fontWeight: "600" },
+  receiptCard: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: COLORS.surface },
+  receiptTitle: { color: COLORS.textPrimary, fontSize: 13, fontWeight: "700", marginBottom: 4 },
+  receiptText: { color: COLORS.textMuted, fontSize: 12 },
+  receiptRefresh: { padding: 8 },
 });

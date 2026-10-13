@@ -362,6 +362,31 @@ class SendNotificationBody(BaseModel):
     title: str
     message: str
     audience: str = "all"  # "all" or "active"
+    faculty: Optional[str] = None
+
+    @field_validator("faculty")
+    @classmethod
+    def validate_faculty(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in FACULTIES_SET:
+            raise ValueError("Facultad inválida")
+        return value
+
+    @field_validator("audience")
+    @classmethod
+    def validate_audience(cls, value: str) -> str:
+        if value not in {"all", "active"}:
+            raise ValueError("Audiencia inválida")
+        return value
+
+
+class PushReceiptBody(BaseModel):
+    notification_id: str = Field(..., min_length=1, max_length=100)
+
+
+class PushDispatchError(RuntimeError):
+    def __init__(self, message: str, accepted_recipients: List[str]):
+        super().__init__(message)
+        self.accepted_recipients = accepted_recipients
 
 
 # =========================
@@ -429,12 +454,13 @@ async def require_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dic
     return user
 
 
-async def send_push(recipients: List[str], data: dict, idempotency_key: Optional[str] = None) -> None:
+async def send_push(recipients: List[str], data: dict, idempotency_key: Optional[str] = None) -> int:
     if not recipients:
-        return
+        return 0
     if "title" not in data or "message" not in data:
         raise ValueError("data must include title and message")
-    # Chunk to 100
+    accepted_recipients: List[str] = []
+    # The push relay accepts at most 100 recipients per request.
     for i in range(0, len(recipients), 100):
         chunk = recipients[i : i + 100]
         payload: dict = {"recipients": chunk, "data": data}
@@ -442,13 +468,16 @@ async def send_push(recipients: List[str], data: dict, idempotency_key: Optional
             payload["$idempotency_key"] = f"{idempotency_key}-{i}"
         try:
             resp = await push_client.post("/api/v1/push/trigger", json=payload)
-            if resp.status_code == 401:
-                logger.warning("Emergent Push: invalid/missing key (401). Placeholder in dev is expected.")
-                return
             if resp.status_code >= 400:
-                logger.warning(f"Push trigger failed {resp.status_code}: {resp.text[:200]}")
+                logger.error("Push trigger rejected a batch (HTTP %s)", resp.status_code)
+                raise PushDispatchError("El servicio de notificaciones rechazó el envío", accepted_recipients)
+            accepted_recipients.extend(chunk)
         except Exception as e:
-            logger.warning(f"Push exception (non-blocking): {e}")
+            if isinstance(e, PushDispatchError):
+                raise
+            logger.exception("Push trigger request failed")
+            raise PushDispatchError("No se pudo contactar al servicio de notificaciones", accepted_recipients) from e
+    return len(accepted_recipients)
 
 
 async def send_email_resend(to_emails: List[str], subject: str, html: str) -> None:
@@ -872,13 +901,41 @@ async def register_push(body: RegisterPushBody, user=Depends(get_current_user)):
             "/api/v1/push/users/register",
             json={"user_id": user["user_id"], "platform": body.platform, "device_token": body.device_token},
         )
-        if resp.status_code == 401:
-            logger.warning("Push register: 401 (placeholder key expected in dev)")
-        elif resp.status_code >= 400:
-            logger.warning(f"Push register failed: {resp.status_code} {resp.text[:200]}")
+        if resp.status_code >= 400:
+            logger.error("Push registration rejected (HTTP %s)", resp.status_code)
+            raise HTTPException(status_code=502, detail="El servicio de notificaciones rechazó el registro del dispositivo")
     except Exception as e:
-        logger.warning(f"Push register exception: {e}")
+        if isinstance(e, HTTPException):
+            raise
+        logger.exception("Push registration request failed")
+        raise HTTPException(status_code=502, detail="No se pudo contactar al servicio de notificaciones") from e
     return {"status": "registered"}
+
+
+@api_router.post("/push/receipt")
+async def record_push_receipt(body: PushReceiptBody, user=Depends(get_current_user)):
+    """Record a device receipt only when the authenticated user was targeted."""
+    delivery = await db.notification_deliveries.find_one({
+        "notification_id": body.notification_id,
+        "status": {"$in": ["accepted", "partially_accepted"]},
+        "provider_accepted_recipients": user["user_id"],
+    })
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada para este usuario")
+    already_received = user["user_id"] in delivery.get("received_user_ids", [])
+    await db.notification_deliveries.update_one(
+        {"notification_id": body.notification_id, "provider_accepted_recipients": user["user_id"]},
+        {"$addToSet": {"received_user_ids": user["user_id"]}},
+    )
+    updated = await db.notification_deliveries.find_one(
+        {"notification_id": body.notification_id},
+        {"_id": 0, "received_user_ids": 1},
+    )
+    return {
+        "received": True,
+        "already_received": already_received,
+        "received_count": len((updated or {}).get("received_user_ids", [])),
+    }
 
 
 # =========================
@@ -1578,13 +1635,73 @@ async def admin_send_notification(body: SendNotificationBody, _admin=Depends(req
         start, _ = week_bounds()
         active_ids = await db.answers.distinct("user_id", {"answered_at": {"$gte": start}})
         q["user_id"] = {"$in": active_ids}
+    if body.faculty:
+        q["faculty"] = body.faculty
     users = await db.users.find(q, {"_id": 0, "user_id": 1}).to_list(10000)
     recipients = [u["user_id"] for u in users]
+    notification_id = f"notification-{uuid.uuid4().hex}"
+    delivery = {
+        "notification_id": notification_id,
+        "title": body.title,
+        "message": body.message,
+        "faculty": body.faculty,
+        "recipients": recipients,
+        "received_user_ids": [],
+        "status": "sending",
+        "created_at": now_utc(),
+    }
+    await db.notification_deliveries.insert_one(delivery)
     try:
-        await send_push(recipients, {"title": body.title, "message": body.message}, idempotency_key=f"manual-{uuid.uuid4().hex[:8]}")
-    except Exception as e:
-        logger.warning(f"Push (manual) error: {e}")
-    return {"sent_to": len(recipients)}
+        accepted = await send_push(
+            recipients,
+            {"title": body.title, "message": body.message, "notification_id": notification_id},
+            idempotency_key=notification_id,
+        )
+    except PushDispatchError as exc:
+        await db.notification_deliveries.update_one(
+            {"notification_id": notification_id},
+            {"$set": {
+                "status": "partially_accepted" if exc.accepted_recipients else "failed",
+                "provider_accepted_recipients": exc.accepted_recipients,
+                "accepted_count": len(exc.accepted_recipients),
+            }},
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    await db.notification_deliveries.update_one(
+        {"notification_id": notification_id},
+        {"$set": {
+            "status": "accepted",
+            "accepted_count": accepted,
+            "provider_accepted_recipients": recipients,
+        }},
+    )
+    return {
+        "sent_to": accepted,
+        "targeted_users": len(recipients),
+        "accepted_by_provider": accepted,
+        "faculty": body.faculty,
+        "notification_id": notification_id,
+    }
+
+
+@api_router.get("/admin/notifications/{notification_id}")
+async def admin_notification_status(notification_id: str, _admin=Depends(require_admin)):
+    delivery = await db.notification_deliveries.find_one(
+        {"notification_id": notification_id},
+        {"_id": 0, "notification_id": 1, "faculty": 1, "status": 1, "recipients": 1,
+         "received_user_ids": 1, "accepted_count": 1, "created_at": 1},
+    )
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    return {
+        "notification_id": delivery["notification_id"],
+        "faculty": delivery.get("faculty"),
+        "status": delivery["status"],
+        "targeted_users": len(delivery.get("recipients", [])),
+        "accepted_by_provider": delivery.get("accepted_count", 0),
+        "received_count": len(delivery.get("received_user_ids", [])),
+        "created_at": to_iso(delivery["created_at"]),
+    }
 
 
 # =========================

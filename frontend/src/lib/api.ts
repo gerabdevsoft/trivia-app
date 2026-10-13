@@ -81,6 +81,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ platform, device_token }),
     }),
+  recordPushReceipt: (notification_id: string) =>
+    request<{ received: boolean; already_received: boolean; received_count: number }>("/push/receipt", {
+      method: "POST",
+      body: JSON.stringify({ notification_id }),
+    }),
 
   // User
   todayQuestions: () => request<{ date: string; questions: any[] }>("/questions/today"),
@@ -147,9 +152,18 @@ export const api = {
     }),
   adminRaffleHistory: () => request<{ raffles: any[] }>("/admin/raffles/history"),
 
-  adminSendNotification: (title: string, message: string, audience = "all") =>
+  adminSendNotification: (title: string, message: string, audience = "all", faculty?: string) =>
     request("/admin/send-notification", {
       method: "POST",
-      body: JSON.stringify({ title, message, audience }),
+      body: JSON.stringify({ title, message, audience, faculty }),
     }),
+  adminNotificationStatus: (notification_id: string) =>
+    request<{
+      notification_id: string;
+      faculty: string | null;
+      status: string;
+      targeted_users: number;
+      accepted_by_provider: number;
+      received_count: number;
+    }>(`/admin/notifications/${encodeURIComponent(notification_id)}`),
 };
