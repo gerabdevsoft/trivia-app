@@ -81,6 +81,19 @@ memory/test_credentials.md
 # Mobile development
 android-sdk/
 
+# Replit workspace-only files
+/.replit
+/.replitignore
+/replit.md
+/replit.nix
+/.replit.nix
+/.breakpoints
+/.agents/
+/.config/
+/.local/
+/.upm/
+/.pythonlibs/
+
 # Local Replit development data and caches
 .local/dev-mongo/
 frontend/.expo/
