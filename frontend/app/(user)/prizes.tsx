@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, RefreshCo
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/src/theme";
 import { api } from "@/src/lib/api";
+import { formatDisplayDate } from "@/src/lib/date-format";
 import { UserBackground } from "@/src/components/UserBackground";
 
 type Prize = {
@@ -98,7 +99,7 @@ function PrizeCard({ p, historical }: { p: Prize; historical?: boolean }) {
         {p.draw_date && (
           <View style={styles.dateRow}>
             <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
-            <Text style={styles.dateText}>Sorteo: {p.draw_date}</Text>
+            <Text style={styles.dateText}>Sorteo: {formatDisplayDate(p.draw_date)}</Text>
           </View>
         )}
       </View>

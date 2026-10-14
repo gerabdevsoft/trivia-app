@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/src/theme";
 import { api } from "@/src/lib/api";
+import { formatDisplayDate } from "@/src/lib/date-format";
 import { useAuth } from "@/src/context/auth";
 
 export default function AdminDashboard() {
@@ -147,7 +148,9 @@ export default function AdminDashboard() {
                   <Ionicons name={p.prize_type === "weekly" ? "trophy" : "star"} size={20} color={COLORS.primary} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.upcomingName}>{p.name}</Text>
-                    <Text style={styles.upcomingType}>{p.prize_type === "weekly" ? "Semanal" : "Usuarios activos"} · {p.draw_date || "sin fecha"}</Text>
+                    <Text style={styles.upcomingType}>
+                      {p.prize_type === "weekly" ? "Semanal" : "Usuarios activos"} · {formatDisplayDate(p.draw_date) || "sin fecha"}
+                    </Text>
                   </View>
                 </View>
               ))

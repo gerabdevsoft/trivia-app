@@ -17,11 +17,23 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "@/src/theme";
 import { api } from "@/src/lib/api";
+import { formatDisplayDate, toDateInputValue } from "@/src/lib/date-format";
+
+const WEEKDAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const MONTH_LABELS = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
 
 export default function AdminPrizes() {
   const [prizes, setPrizes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<{ name: string; description: string; prize_type: "weekly" | "active"; draw_date: string; image_base64: string | null; image_content_type: string }>({
     name: "",
@@ -34,6 +46,14 @@ export default function AdminPrizes() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500); };
+  const firstDayOffset = (calendarMonth.getDay() + 6) % 7;
+  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+  const calendarDays: (number | null)[] = [
+    ...Array.from({ length: firstDayOffset }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+  const calendarMonthLabel = `${MONTH_LABELS[calendarMonth.getMonth()][0].toUpperCase()}${MONTH_LABELS[calendarMonth.getMonth()].slice(1)} ${calendarMonth.getFullYear()}`;
+  const todayDate = toDateInputValue(new Date());
 
   const load = useCallback(async () => {
     try { const r = await api.adminListPrizes(); setPrizes(r.prizes as any); }
@@ -44,20 +64,34 @@ export default function AdminPrizes() {
 
   const openCreate = () => {
     setEditing(null);
+    setCalendarOpen(false);
     setForm({ name: "", description: "", prize_type: "weekly", draw_date: "", image_base64: null, image_content_type: "image/jpeg" });
     setModalOpen(true);
   };
   const openEdit = (p: any) => {
     setEditing(p);
+    setCalendarOpen(false);
     setForm({
       name: p.name,
       description: p.description || "",
       prize_type: p.prize_type,
-      draw_date: p.draw_date || "",
+      draw_date: toDateInputValue(p.draw_date),
       image_base64: null,
       image_content_type: "image/jpeg",
     });
     setModalOpen(true);
+  };
+  const openCalendar = () => {
+    const isoDate = toDateInputValue(form.draw_date);
+    const [year, month, day] = isoDate ? isoDate.split("-").map(Number) : [];
+    const anchor = isoDate ? new Date(year, month - 1, day) : new Date();
+    setCalendarMonth(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    setCalendarOpen(true);
+  };
+  const selectCalendarDay = (day: number) => {
+    const date = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+    setForm((current) => ({ ...current, draw_date: toDateInputValue(date) }));
+    setCalendarOpen(false);
   };
 
   const pickImage = async () => {    
@@ -191,7 +225,7 @@ export default function AdminPrizes() {
                     </Text>
                   )}
                   {!!p.draw_date && (
-                    <Text style={styles.pdate}>Fecha: {p.draw_date}</Text>
+                    <Text style={styles.pdate}>Fecha: {formatDisplayDate(p.draw_date)}</Text>
                   )}
                   <View style={styles.actions}>
                     {!p.executed && (
@@ -267,14 +301,87 @@ export default function AdminPrizes() {
                 testID="prize-description"
                 placeholderTextColor={COLORS.textMuted}
               />
-              <TextInput
-                placeholder="Fecha (YYYY-MM-DD)"
-                value={form.draw_date}
-                onChangeText={(v) => setForm({ ...form, draw_date: v })}
-                style={styles.input}
+              <Text style={styles.fieldLabel}>Fecha del sorteo</Text>
+              <TouchableOpacity
+                style={styles.dateField}
+                onPress={openCalendar}
+                accessibilityRole="button"
+                accessibilityLabel="Elegir fecha del sorteo"
                 testID="prize-date"
-                placeholderTextColor={COLORS.textMuted}
-              />
+              >
+                <Text style={form.draw_date ? styles.dateValue : styles.datePlaceholder}>
+                  {formatDisplayDate(form.draw_date) || "Seleccionar fecha (DD/MM/YYYY)"}
+                </Text>
+                <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+              </TouchableOpacity>
+              {calendarOpen && (
+                <View style={styles.calendarPanel} testID="prize-calendar">
+                  <View style={styles.calendarNavigation}>
+                    <TouchableOpacity
+                      style={styles.calendarArrow}
+                      onPress={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Mes anterior"
+                      testID="calendar-previous-month"
+                    >
+                      <Ionicons name="chevron-back" size={20} color={COLORS.primaryDark} />
+                    </TouchableOpacity>
+                    <Text style={styles.calendarMonth}>{calendarMonthLabel}</Text>
+                    <TouchableOpacity
+                      style={styles.calendarArrow}
+                      onPress={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Mes siguiente"
+                      testID="calendar-next-month"
+                    >
+                      <Ionicons name="chevron-forward" size={20} color={COLORS.primaryDark} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.calendarWeekdays}>
+                    {WEEKDAY_LABELS.map((weekday) => (
+                      <Text key={weekday} style={styles.calendarWeekday}>{weekday}</Text>
+                    ))}
+                  </View>
+                  <View style={styles.calendarGrid}>
+                    {calendarDays.map((day, index) => {
+                      if (day === null) {
+                        return <View key={`empty-${index}`} style={styles.calendarDayCell} />;
+                      }
+                      const date = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+                      const dateValue = toDateInputValue(date);
+                      const selected = form.draw_date === dateValue;
+                      const isToday = todayDate === dateValue;
+                      return (
+                        <TouchableOpacity
+                          key={dateValue}
+                          style={[
+                            styles.calendarDayCell,
+                            selected && styles.calendarDayCellSelected,
+                            !selected && isToday && styles.calendarDayCellToday,
+                          ]}
+                          onPress={() => selectCalendarDay(day)}
+                          accessibilityRole="button"
+                          accessibilityLabel={formatDisplayDate(dateValue)}
+                          accessibilityState={{ selected }}
+                          testID={`calendar-day-${dateValue}`}
+                        >
+                          <Text style={[styles.calendarDayText, selected && styles.calendarDayTextSelected]}>{day}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {!!form.draw_date && (
+                    <TouchableOpacity
+                      style={styles.clearDateButton}
+                      onPress={() => setForm((current) => ({ ...current, draw_date: "" }))}
+                      accessibilityRole="button"
+                      testID="clear-prize-date"
+                    >
+                      <Text style={styles.clearDateText}>Quitar fecha</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
               <View style={styles.typeRow}>
                 <TouchableOpacity
                   style={[
@@ -366,6 +473,24 @@ const styles = StyleSheet.create({
   pname: { fontSize: 16, fontWeight: "800", color: COLORS.primaryDark },
   pdesc: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3 },
   pdate: { fontSize: 12, color: COLORS.primary, marginTop: 4, fontWeight: "600" },
+  fieldLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: "700", marginBottom: 6 },
+  dateField: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 12, marginBottom: 10, backgroundColor: COLORS.surface },
+  dateValue: { color: COLORS.textPrimary, fontSize: 15 },
+  datePlaceholder: { color: COLORS.textMuted, fontSize: 15 },
+  calendarPanel: { padding: 10, marginTop: -2, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, backgroundColor: COLORS.white },
+  calendarNavigation: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  calendarArrow: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: COLORS.surface },
+  calendarMonth: { color: COLORS.primaryDark, fontSize: 16, fontWeight: "800" },
+  calendarWeekdays: { flexDirection: "row", marginBottom: 4 },
+  calendarWeekday: { width: "14.2857%", color: COLORS.textMuted, fontSize: 11, textAlign: "center", fontWeight: "700" },
+  calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
+  calendarDayCell: { width: "14.2857%", height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19 },
+  calendarDayCellSelected: { backgroundColor: COLORS.primary },
+  calendarDayCellToday: { borderWidth: 1, borderColor: COLORS.primary },
+  calendarDayText: { color: COLORS.textPrimary, fontSize: 14, fontWeight: "600" },
+  calendarDayTextSelected: { color: COLORS.white, fontWeight: "800" },
+  clearDateButton: { alignSelf: "flex-end", paddingHorizontal: 8, paddingVertical: 6 },
+  clearDateText: { color: COLORS.error, fontWeight: "700", fontSize: 12 },
   actions: { flexDirection: "row", gap: 14, marginTop: 8 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   actionText: { fontSize: 12, color: COLORS.primary, fontWeight: "700" },

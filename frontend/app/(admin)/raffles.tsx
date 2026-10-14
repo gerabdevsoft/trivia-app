@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/src/theme";
 import { api } from "@/src/lib/api";
+import { formatDisplayDate } from "@/src/lib/date-format";
 
 export default function AdminRaffles() {
   const [prizes, setPrizes] = useState<any[]>([]);
@@ -33,14 +34,16 @@ export default function AdminRaffles() {
 
   const load = useCallback(async () => {
     try {
-      const [p, h, facultyData] = await Promise.all([
-        api.adminListPrizes(),
-        api.adminRaffleHistory(),
-        api.faculties(),
-      ]);
+      const [p, h] = await Promise.all([api.adminListPrizes(), api.adminRaffleHistory()]);
       setPrizes(p.prizes as any);
       setHistory(h.raffles as any);
-      setFaculties(facultyData.faculties);
+      try {
+        const facultyData = await api.faculties();
+        setFaculties(facultyData.faculties);
+      } catch (facultyError) {
+        setFaculties([]);
+        console.log(facultyError);
+      }
     } catch (e) { console.log(e); } finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -61,8 +64,8 @@ export default function AdminRaffles() {
     } catch (e: any) { showToast(e?.message || "Error"); }
     finally { setBusy(false); }
   };
-  const executeActive = async (p: any) => {
-    const prize = p || activeRaffleModal.prize;
+  const executeActive = async () => {
+    const prize = activeRaffleModal.prize;
     if (!prize) return;
     setBusy(true);
     try {
@@ -91,7 +94,7 @@ export default function AdminRaffles() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.pname}>{p.name}</Text>
                 <Text style={styles.ptype}>{p.prize_type === "weekly" ? "Semanal (Top N)" : "Usuarios activos"}</Text>
-                {!!p.draw_date && <Text style={styles.pdate}>Fecha: {p.draw_date}</Text>}
+                {!!p.draw_date && <Text style={styles.pdate}>Fecha: {formatDisplayDate(p.draw_date)}</Text>}
               </View>
               {p.prize_type === "weekly" ? (
                 <TouchableOpacity style={styles.execBtn} onPress={() => openWeekly(p)} testID={`exec-weekly-${p.prize_id}`}>
@@ -167,7 +170,7 @@ export default function AdminRaffles() {
           <View style={[styles.modal, { maxHeight: "90%" }]}>
             <Text style={styles.modalTitle}>Sorteo de usuarios activos</Text>
             <Text style={styles.modalDesc}>
-              Participan usuarios con cuenta activa que respondieron al menos una pregunta en el periodo de actividad.
+              Participan usuarios con cuenta activa que respondieron al menos una pregunta en los últimos 7 días.
             </Text>
             <Text style={styles.label}>¿Quiénes pueden participar?</Text>
             <ScrollView style={styles.facultyScopeList} nestedScrollEnabled>
@@ -204,7 +207,9 @@ export default function AdminRaffles() {
                 </TouchableOpacity>
               ))}
               {faculties.length === 0 && (
-                <Text style={styles.facultyScopeEmpty}>No se pudieron cargar las facultades. Cierra y vuelve a abrir esta pantalla.</Text>
+                <Text style={styles.facultyScopeEmpty}>
+                  No se cargaron las facultades. Puedes sortear con todas; vuelve a abrir la pantalla para elegir una.
+                </Text>
               )}
             </ScrollView>
             <Text style={styles.scopeHint}>
@@ -219,7 +224,7 @@ export default function AdminRaffles() {
               <TouchableOpacity
                 style={[styles.btnPrimary, { flex: 1 }]}
                 onPress={() => executeActive()}
-                disabled={busy || faculties.length === 0}
+                disabled={busy}
                 testID="confirm-active-raffle"
               >
                 {busy ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.btnPrimaryText}>Sortear</Text>}
