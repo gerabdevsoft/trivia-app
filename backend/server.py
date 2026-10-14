@@ -58,22 +58,22 @@ EMERGENT_AUTH_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/ses
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 FACULTIES = [
+    "Arquitectura y Ciencias del Hábitat",
+    "Ciencias Agrarias",
+    "Ciencias de Enfermería y Obstetricia",
+    "Ciencias Económicas y Empresariales",
+    "Ciencias Químico - Farmacéuticas y Bioquímicas",
+    "Ciencias y Tecnología",
+    "Ciencias y Tecnologías de la Salud",
+    "Contaduría Pública y Ciencias Financieras",
     "Derecho, Ciencias Políticas y Sociales",
+    "Humanidades y Ciencias de la Educación",
+    "Ingeniería Civil",
+    "Ingeniería y Ciencias Aplicadas Meca - Electrónicas",
+    "Integral Defensores del Chaco",
     "Medicina",
     "Odontología",
-    "Ciencias Químico - Farmacéuticas y Bioquímicas",
-    "Contaduría Pública y Ciencias Financieras",
-    "Ciencias Económicas y Empresariales",
-    "Ciencias y Tecnología",
-    "Ciencias Agrarias",
-    "Humanidades y Ciencias de la Educación",
     "Técnica",
-    "Ciencias de Enfermería y Obstetricia",
-    "Ciencias y Tecnologías de la Salud",
-    "Ingeniería y Ciencias Aplicadas Meca - Electrónicas",
-    "Arquitectura y Ciencias del Hábitat",
-    "Ingeniería Civil",
-    "Integral Defensores del Chaco",
 ]
 FACULTIES_SET = set(FACULTIES)
 
