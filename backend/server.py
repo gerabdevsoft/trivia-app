@@ -340,6 +340,7 @@ class RaffleExecuteActive(BaseModel):
     prize_id: str
     start_date: Optional[str] = None  # ISO date; if None, uses last 7 days
     end_date: Optional[str] = None
+    faculty: Optional[str] = None  # None means all faculties
 
 
 class RaffleOut(BaseModel):
@@ -347,6 +348,7 @@ class RaffleOut(BaseModel):
     prize_id: str
     prize_name: str
     prize_type: str
+    faculty: Optional[str] = None
     date: str
     participants: List[Dict[str, Any]]  # {user_id, email, name, points?}
     winner: Dict[str, Any]  # {user_id, email, name}
@@ -618,6 +620,18 @@ async def send_reset_email(to_email: str, name: str, raw_token: str) -> None:
 # =========================
 @app.on_event("startup")
 async def on_startup():
+    existing_collections = await db.list_collection_names()
+    if existing_collections:
+        logger.info(
+            "Existing database '%s' detected with %s collection(s); "
+            "skipping startup initialization to preserve existing data",
+            DB_NAME,
+            len(existing_collections),
+        )
+        return
+
+    logger.info("Database '%s' is empty; running first-time initialization", DB_NAME)
+
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
@@ -1614,6 +1628,9 @@ async def admin_execute_weekly(body: RaffleExecuteWeekly, _admin=Depends(require
 
 @api_router.post("/admin/raffles/active", response_model=RaffleOut)
 async def admin_execute_active(body: RaffleExecuteActive, _admin=Depends(require_admin)):
+    if body.faculty is not None and body.faculty not in FACULTIES_SET:
+        raise HTTPException(400, "Facultad inválida")
+
     prize = await db.prizes.find_one({"prize_id": body.prize_id, "prize_type": "active"})
     if not prize:
         raise HTTPException(404, "Active prize not found")
@@ -1635,9 +1652,17 @@ async def admin_execute_active(body: RaffleExecuteActive, _admin=Depends(require
     ids = await db.answers.distinct("user_id", {"answered_at": {"$gte": start, "$lt": end}})
     if not ids:
         raise HTTPException(400, "No active users in period")
-    users = await db.users.find({"user_id": {"$in": ids}, "is_active": True}, {"_id": 0}).to_list(10000)
+    user_query: Dict[str, Any] = {"user_id": {"$in": ids}, "is_active": True}
+    if body.faculty is not None:
+        user_query["faculty"] = body.faculty
+    users = await db.users.find(user_query, {"_id": 0}).to_list(10000)
     if not users:
-        raise HTTPException(400, "No eligible active users")
+        raise HTTPException(
+            400,
+            "No eligible active users in the selected faculty"
+            if body.faculty is not None
+            else "No eligible active users",
+        )
     participants = [{"user_id": u["user_id"], "email": u["email"], "name": u["name"]} for u in users]
     winner = random.choice(participants)
     raffle_id = f"raffle_{uuid.uuid4().hex[:12]}"
@@ -1646,6 +1671,7 @@ async def admin_execute_active(body: RaffleExecuteActive, _admin=Depends(require
         "prize_id": prize["prize_id"],
         "prize_name": prize["name"],
         "prize_type": "active",
+        "faculty": body.faculty,
         "date": now_utc(),
         "period_start": start,
         "period_end": end,
@@ -1676,7 +1702,7 @@ async def admin_execute_active(body: RaffleExecuteActive, _admin=Depends(require
 
     return RaffleOut(
         id=raffle_id, prize_id=prize["prize_id"], prize_name=prize["name"], prize_type="active",
-        date=to_iso(doc["date"]), participants=participants, winner=winner,
+        faculty=body.faculty, date=to_iso(doc["date"]), participants=participants, winner=winner,
     )
 
 

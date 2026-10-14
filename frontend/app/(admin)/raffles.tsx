@@ -18,24 +18,36 @@ import { api } from "@/src/lib/api";
 export default function AdminRaffles() {
   const [prizes, setPrizes] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [faculties, setFaculties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [nValueModal, setNValueModal] = useState<{ prize: any | null; open: boolean }>({ prize: null, open: false });
   const [n, setN] = useState("10");
+  const [activeRaffleModal, setActiveRaffleModal] = useState<{ prize: any | null; faculty: string | null }>({
+    prize: null,
+    faculty: null,
+  });
   const [detail, setDetail] = useState<any | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
   const load = useCallback(async () => {
     try {
-      const [p, h] = await Promise.all([api.adminListPrizes(), api.adminRaffleHistory()]);
+      const [p, h, facultyData] = await Promise.all([
+        api.adminListPrizes(),
+        api.adminRaffleHistory(),
+        api.faculties(),
+      ]);
       setPrizes(p.prizes as any);
       setHistory(h.raffles as any);
+      setFaculties(facultyData.faculties);
     } catch (e) { console.log(e); } finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const openWeekly = (p: any) => { setN("10"); setNValueModal({ prize: p, open: true }); };
+  const openActive = (prize: any) => setActiveRaffleModal({ prize, faculty: null });
+  const closeActive = () => setActiveRaffleModal({ prize: null, faculty: null });
   const executeWeekly = async () => {
     if (!nValueModal.prize) return;
     const nn = parseInt(n, 10);
@@ -50,10 +62,13 @@ export default function AdminRaffles() {
     finally { setBusy(false); }
   };
   const executeActive = async (p: any) => {
+    const prize = p || activeRaffleModal.prize;
+    if (!prize) return;
     setBusy(true);
     try {
-      const r = await api.adminExecuteActive(p.prize_id);
+      const r = await api.adminExecuteActive(prize.prize_id, { faculty: activeRaffleModal.faculty });
       showToast(`Ganador: ${r.winner.name}`);
+      closeActive();
       await load();
     } catch (e: any) { showToast(e?.message || "Error"); }
     finally { setBusy(false); }
@@ -84,7 +99,7 @@ export default function AdminRaffles() {
                   <Text style={styles.execText}>Sortear</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.execBtn} onPress={() => executeActive(p)} disabled={busy} testID={`exec-active-${p.prize_id}`}>
+                <TouchableOpacity style={styles.execBtn} onPress={() => openActive(p)} disabled={busy} testID={`exec-active-${p.prize_id}`}>
                   {busy ? <ActivityIndicator color={COLORS.white} /> : (
                     <>
                       <Ionicons name="dice" size={16} color={COLORS.white} />
@@ -103,7 +118,11 @@ export default function AdminRaffles() {
             <TouchableOpacity key={r.raffle_id} style={styles.hcard} onPress={() => setDetail(r)} testID={`history-raffle-${r.raffle_id}`}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.hname}>{r.prize_name}</Text>
-                <Text style={styles.htype}>{r.prize_type === "weekly" ? "Semanal" : "Usuarios activos"} · {String(r.date).slice(0, 10)}</Text>
+                <Text style={styles.htype}>
+                  {r.prize_type === "weekly"
+                    ? `Semanal · ${String(r.date).slice(0, 10)}`
+                    : `Usuarios activos · ${r.faculty || "Todas las facultades"} · ${String(r.date).slice(0, 10)}`}
+                </Text>
                 <Text style={styles.hwinner}>🏆 {r.winner?.name} ({r.winner?.email})</Text>
                 <Text style={styles.hpart}>{r.participants?.length ?? 0} participantes</Text>
               </View>
@@ -143,12 +162,83 @@ export default function AdminRaffles() {
         </View>
       </Modal>
 
+      <Modal visible={!!activeRaffleModal.prize} transparent animationType="slide" onRequestClose={closeActive}>
+        <View style={styles.modalWrap}>
+          <View style={[styles.modal, { maxHeight: "90%" }]}>
+            <Text style={styles.modalTitle}>Sorteo de usuarios activos</Text>
+            <Text style={styles.modalDesc}>
+              Participan usuarios con cuenta activa que respondieron al menos una pregunta en el periodo de actividad.
+            </Text>
+            <Text style={styles.label}>¿Quiénes pueden participar?</Text>
+            <ScrollView style={styles.facultyScopeList} nestedScrollEnabled>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ selected: activeRaffleModal.faculty === null }}
+                style={[
+                  styles.facultyScopeOption,
+                  activeRaffleModal.faculty === null && styles.facultyScopeOptionSelected,
+                ]}
+                onPress={() => setActiveRaffleModal((current) => ({ ...current, faculty: null }))}
+                testID="active-raffle-all-faculties"
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.facultyScopeName}>Todos los usuarios activos</Text>
+                  <Text style={styles.facultyScopeDescription}>De todas las facultades</Text>
+                </View>
+                {activeRaffleModal.faculty === null && <Ionicons name="checkmark-circle" size={22} color={COLORS.accent} />}
+              </TouchableOpacity>
+              {faculties.map((faculty) => (
+                <TouchableOpacity
+                  key={faculty}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: activeRaffleModal.faculty === faculty }}
+                  style={[
+                    styles.facultyScopeOption,
+                    activeRaffleModal.faculty === faculty && styles.facultyScopeOptionSelected,
+                  ]}
+                  onPress={() => setActiveRaffleModal((current) => ({ ...current, faculty }))}
+                  testID={`active-raffle-faculty-${faculty}`}
+                >
+                  <Text style={[styles.facultyScopeName, { flex: 1 }]}>{faculty}</Text>
+                  {activeRaffleModal.faculty === faculty && <Ionicons name="checkmark-circle" size={22} color={COLORS.accent} />}
+                </TouchableOpacity>
+              ))}
+              {faculties.length === 0 && (
+                <Text style={styles.facultyScopeEmpty}>No se pudieron cargar las facultades. Cierra y vuelve a abrir esta pantalla.</Text>
+              )}
+            </ScrollView>
+            <Text style={styles.scopeHint}>
+              {activeRaffleModal.faculty
+                ? `Se sorteará solo entre usuarios activos de ${activeRaffleModal.faculty}.`
+                : "El sorteo incluirá usuarios activos de todas las facultades."}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <TouchableOpacity style={[styles.btnGhost, { flex: 1 }]} onPress={closeActive} disabled={busy}>
+                <Text style={styles.btnGhostText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, { flex: 1 }]}
+                onPress={() => executeActive()}
+                disabled={busy || faculties.length === 0}
+                testID="confirm-active-raffle"
+              >
+                {busy ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.btnPrimaryText}>Sortear</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={!!detail} transparent animationType="slide" onRequestClose={() => setDetail(null)}>
         <View style={styles.modalWrap}>
           <View style={[styles.modal, { maxHeight: "80%" }]}>
             <ScrollView>
               <Text style={styles.modalTitle}>{detail?.prize_name}</Text>
-              <Text style={styles.modalDesc}>{detail?.prize_type === "weekly" ? "Sorteo Semanal" : "Sorteo Usuarios Activos"}</Text>
+              <Text style={styles.modalDesc}>
+                {detail?.prize_type === "weekly"
+                  ? "Sorteo Semanal"
+                  : `Sorteo Usuarios Activos · ${detail?.faculty || "Todas las facultades"}`}
+              </Text>
               <Text style={styles.label}>Ganador</Text>
               <View style={styles.winnerBox}>
                 <Ionicons name="trophy" size={24} color={COLORS.accent} />
@@ -209,6 +299,13 @@ const styles = StyleSheet.create({
   partRow: { flexDirection: "row", justifyContent: "space-between", padding: 10, backgroundColor: COLORS.surface, borderRadius: 8, marginBottom: 4 },
   partName: { color: COLORS.textPrimary, fontWeight: "600" },
   partPts: { color: COLORS.primary, fontWeight: "800" },
+  facultyScopeList: { maxHeight: 280, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 8 },
+  facultyScopeOption: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  facultyScopeOptionSelected: { backgroundColor: COLORS.successBg, borderColor: COLORS.accent, borderRadius: 10 },
+  facultyScopeName: { color: COLORS.textPrimary, fontWeight: "700" },
+  facultyScopeDescription: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
+  facultyScopeEmpty: { color: COLORS.error, padding: 12, textAlign: "center" },
+  scopeHint: { color: COLORS.textSecondary, fontSize: 12, marginTop: 10, lineHeight: 17 },
   toast: { position: "absolute", left: 20, right: 20, bottom: 20, backgroundColor: COLORS.primaryDark, padding: 14, borderRadius: 12 },
   toastText: { color: COLORS.white, textAlign: "center", fontWeight: "600" },
 });

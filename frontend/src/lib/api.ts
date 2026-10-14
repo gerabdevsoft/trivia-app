@@ -150,10 +150,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ prize_id, n }),
     }),
-  adminExecuteActive: (prize_id: string, start_date?: string, end_date?: string) =>
+  adminExecuteActive: (
+    prize_id: string,
+    options: { start_date?: string; end_date?: string; faculty?: string | null } = {},
+  ) =>
     request<any>("/admin/raffles/active", {
       method: "POST",
-      body: JSON.stringify({ prize_id, start_date, end_date }),
+      body: JSON.stringify({ prize_id, ...options }),
     }),
   adminRaffleHistory: () => request<{ raffles: any[] }>("/admin/raffles/history"),
 
