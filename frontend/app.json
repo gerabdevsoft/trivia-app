@@ -2,7 +2,7 @@
   "expo": {
     "name": "Yamile Hayes",
     "slug": "trivia-usfx",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "triviausfx",
@@ -23,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "soft.dev.gerab.usfx.trivia", 
-       "versionCode": 4,     
+       "versionCode": 5,     
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ]
