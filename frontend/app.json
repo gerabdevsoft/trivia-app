@@ -23,10 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "soft.dev.gerab.usfx.trivia", 
-       "versionCode": 5,     
-      "permissions": [
-        "android.permission.POST_NOTIFICATIONS"
-      ]
+      "versionCode": 5
     },
     "web": {
       "bundler": "metro",
