@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/src/theme";
@@ -24,7 +25,7 @@ export default function Ranking() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const medalColor = (rank: number) =>
     rank === 1 ? "#F5B301" : rank === 2 ? "#B0B0B0" : rank === 3 ? "#CD7F32" : COLORS.primary;
