@@ -34,6 +34,14 @@
       "expo-router",
       "expo-notifications",
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true
+          }
+        }
+      ],
       "@react-native-google-signin/google-signin",
       [
         "expo-image-picker",
